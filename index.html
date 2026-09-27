@@ -1,4 +1,10 @@
-<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Calendário Pinta Me · Equipe</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap"><style>
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
+<title>Calendário Pinta Me</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:opsz,wght@6..12,400;6..12,600;6..12,700;6..12,800&display=swap">
+<style>
 [hidden]{display:none!important}
 :root{
   --bg:#F6F7FB; --surface:#FFFFFF; --surface-2:#F0F2F8; --ink:#1D2140; --muted:#5F6582; --line:#E2E5EF;
@@ -169,8 +175,12 @@ button{cursor:pointer}
 .cfg-table table{border-collapse:collapse;width:100%;min-width:760px}
 .cfg-table th{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);font-weight:800}
 .cfg-table td{padding:6px 10px;border-bottom:1px solid var(--line);vertical-align:middle}
-.cfg-table input[type=text],.cfg-table input[type=email],.cfg-table input[type=tel],.cfg-table input[type=number],.cfg-table select{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;font-size:14px}
+.cfg-table input[type=text],.cfg-table input[type=email],.cfg-table input[type=tel],.cfg-table input[type=number],.cfg-table input[type=date],.cfg-table select{width:100%;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;font-size:14px}
 .cfg-table input[type=number]{width:72px}
+.cfg-table select{min-width:125px}
+.iconbtn.mv{width:24px;height:26px;font-size:15px}
+.iconbtn.mv:disabled{opacity:.25;cursor:default}
+.cfg-table input[type=date]{min-width:140px}
 .phase{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .savebar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:flex-end;padding:12px 16px}
 
@@ -234,7 +244,9 @@ button{cursor:pointer}
 .ochk{display:inline-flex;align-items:center;gap:4px;font-size:13px;margin-right:10px;white-space:nowrap}
 .empty{padding:36px 16px;text-align:center;display:flex;flex-direction:column;gap:10px;align-items:center}
 @media (prefers-reduced-motion:no-preference){.btn,.chip,.tab{transition:border-color .15s,background .15s}}
-</style></head><body><div class="wrap">
+</style>
+
+<div class="wrap">
   <header class="top">
     <div class="brand">
       <div class="markers" aria-hidden="true"><i style="background:#E8467C"></i><i style="background:#2D7FF9"></i><i style="background:#F5A500"></i><i style="background:#16A673"></i><i style="background:#7B5CFF"></i></div>
@@ -282,7 +294,10 @@ button{cursor:pointer}
     </div>
   </div>
 </div>
-<div class="toast" id="toast" hidden></div><script>window.__PM_SNAP_URL__="dados.json"</script><script>
+<div class="toast" id="toast" hidden></div>
+
+<script>window.__PM_SNAP_URL__="dados.json"</script>
+<script>
 (function(){
 const COLORS=["#E8467C","#2D7FF9","#F5A500","#16A673","#FF7A2F","#7B5CFF","#12A4B8"];
 const AVATAR=["#E8467C","#2D7FF9","#16A673","#FF7A2F","#7B5CFF","#12A4B8","#C98A00"];
@@ -339,18 +354,13 @@ function allTasks(){
   for(const c of campaigns){
     const start=parseD(c.start), end=parseD(c.end); if(!start||!end) continue;
     const list=(isCol(c)?colTemplates:templates).filter(t=>t.active!==false).map(t=>Object.assign({},t,{src:"m"})).concat((c.extras||[]).map(t=>Object.assign({},t,{src:"x"})));
-    for(const t of list){
+    const sched=calcList(list,c,t=>statusMap[c.id+"__"+t.key]);
+    list.forEach((t,ti)=>{
       const sid=c.id+"__"+t.key, st=statusMap[sid]||{};
-      const anchor=t.anchor==="fim"?end:start;
-      let due=st.due?parseD(st.due):addDays(anchor,-Number(t.days||0));
-      const wd=wdOf(t);
-      if(!st.due&&wd!=null) due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
-      if(!st.due) due=isAfter(t)?bizFwd(due):bizBack(due);
-      const dur=st.dur!=null?Number(st.dur):Number(t.dur||0);
-      const startD=dur>0?bizBack(addDays(due,-dur)):null;
+      const {due,dur,start:startD}=sched[ti];
       const owners=(st.owners&&st.owners.length)?st.owners:st.owner?[st.owner]:defOwners(t);
       out.push({sid,camp:c,tpl:t,name:st.name||t.name,phase:t.phase||(isCol(c)?"colecao":"execucao"),owners,owner:owners[0]||"",due,dur,start:startD,startedAt:st.startedAt||null,critica:!!t.critica,obs:st.obs||t.obs||"",state:st.state||"pendente",doneAt:st.doneAt,custom:!!(st.due||st.dur!=null||st.name||(st.owners&&st.owners.length))});
-    }
+    });
   }
   return out;
 }
@@ -447,7 +457,7 @@ function renderCal(tasks){
     let dots="";
     for(const k of ct){const px=x(k.due)+DW/2;if(px<0||px>W)continue;const st=tstat(k);dots+=`<span class="dot ${st.cls}" data-goto="${c.id}" style="left:${px}px" title="${esc(k.name)} — ${esc(namesOf(k.owners))} — ${brFull(k.due)} (${st.label})"></span>`}
     const openN=ct.filter(isOpen).length, lateN=ct.filter(k=>isLate(k)).length;
-    rows+=`<div class="tl-row"><div class="tl-lab"><b data-edit="${c.id}">${esc(c.name)}</b><span>${br(s)} → ${br(e)}${lateN?` · <span style="color:var(--late);font-weight:800">${lateN} atrasada${lateN>1?"s":""}</span>`:openN?` · ${openN} abertas`:" · pronta"}</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div>${prep}${bar}${dots}</div></div>`;
+    rows+=`<div class="tl-row"><div class="tl-lab"><b data-edit="${c.id}">${esc(c.name)}</b><span>${br(s)} → ${br(e)}${(()=>{const r=colRisk(c,tasks);return r?` · <span style="color:var(--late);font-weight:800" title="${esc(shortName(r.k.name))} ${esc(r.why)}">início previsto ${br(r.proj)} (+${r.delay}d)</span>`:""})()}${lateN?` · <span style="color:var(--late);font-weight:800">${lateN} atrasada${lateN>1?"s":""}</span>`:openN?` · ${openN} abertas`:" · pronta"}</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div>${prep}${bar}${dots}</div></div>`;
   }
   const tx=diff(t,start);const todayLine=(tx>=0&&tx<n)?`<div class="today-line" style="left:${170+tx*DW+DW/2-1}px"></div>`:"";
   const body=vis.length?rows:`<div class="tl-row"><div class="tl-lab"><span>Nada neste período</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div></div></div>`;
@@ -588,22 +598,58 @@ function renderCob(tasks){
   $("#v-cobrancas").innerHTML=`<div class="note">Aqui aparece quem tem tarefa <b>atrasada</b> ou vencendo nos <b>próximos 3 dias</b>, com a mensagem de cobrança pronta. Todo dia útil por volta das 7h30 saem e-mails automáticos (de pintamemais@gmail.com): cada pessoa com e-mail cadastrado na aba Equipe recebe suas tarefas pendentes e as próximas entregas dos 30 dias seguintes, numeradas. Quem responder “feito 1” tem a tarefa marcada aqui em algumas horas. O comercial também recebe a lista de tudo que vence no dia seguinte.</div><div class="people">${cards||`<div class="card empty">Cadastre a equipe na aba Equipe e modelo de tarefas.</div>`}</div>`;
 }
 
+let refCamp=null, refCol=null;
+function calcList(list,c,stOf){
+  const s0=parseD(c.start),e0=parseD(c.end);let prev=null;const out=[];
+  for(const t of list){const st=(stOf&&stOf(t))||{};const dur=st.dur!=null?Number(st.dur):Number(t.dur||0);let due,start=null;
+    if(st.due){due=parseD(st.due);if(dur>0)start=bizBack(addDays(due,-dur))}
+    else if(t.dep&&prev){due=bizFwd(addDays(prev.due,dur));if(dur>0)start=prev.due}
+    else{const anchor=t.anchor==="fim"?e0:s0;due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
+      if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
+      due=isAfter(t)?bizFwd(due):bizBack(due);if(dur>0)start=bizBack(addDays(due,-dur))}
+    const r={due,start,dur};out.push(r);prev=r}
+  return out}
+function draftDates(list,c){if(!c)return null;const act=list.map((t,i)=>({t,i})).filter(x=>x.t.active!==false);const r=calcList(act.map(x=>x.t),c,null);const m={};act.forEach((x,j)=>m[x.i]=r[j]);return m}
 function renderCfg(){
+  if(!cfgDraft&&!TEAM){try{const k=JSON.parse(localStorage.getItem("pmm-cfg-draft")||"null");if(k&&k.people&&k.tasks&&k.col){cfgDraft=k;cfgDirty=true;setTimeout(()=>toast("Recuperei alterações que não tinham sido salvas"),50)}}catch(e){}}
   if(!cfgDirty||!cfgDraft) cfgDraft={people:JSON.parse(JSON.stringify(team)),tasks:JSON.parse(JSON.stringify(templates)),col:JSON.parse(JSON.stringify(colTemplates))};
   const dis=canWrite?"":"disabled";
   const ppl=cfgDraft.people.map((p,i)=>`<tr><td><input type="text" id="cp-n-${i}" data-cp="${i}" data-k="name" value="${esc(p.name)}" ${dis}></td><td><input type="email" id="cp-e-${i}" data-cp="${i}" data-k="email" value="${esc(p.email)}" placeholder="nome@email.com" ${dis}></td><td><input type="text" id="cp-r-${i}" data-cp="${i}" data-k="role" value="${esc(p.role)}" placeholder="Função" ${dis}></td><td>${canWrite?`<button class="iconbtn" data-cp-del="${i}" aria-label="Remover ${esc(p.name)}" type="button">×</button>`:""}</td></tr>`).join("");
-  const ownerOpts=sel=>`<option value="">—</option>`+cfgDraft.people.map(p=>`<option value="${p.id}" ${p.id===sel?"selected":""}>${esc(p.name)}</option>`).join("");
   const order=Object.keys(PHASES);
-  const idx=cfgDraft.tasks.map((t,i)=>i).sort((a,b)=>{const A=cfgDraft.tasks[a],B=cfgDraft.tasks[b];const pa=order.indexOf(A.phase),pb=order.indexOf(B.phase);if(pa!==pb)return pa-pb;const da=(A.anchor==="fim"?-1000:0)-Number(A.days||0),dbb=(B.anchor==="fim"?-1000:0)-Number(B.days||0);return da-dbb});
-  const tks=idx.map(i=>{const t=cfgDraft.tasks[i];return `<tr><td><input type="checkbox" id="ct-a-${i}" data-ct="${i}" data-k="active" ${t.active!==false?"checked":""} aria-label="Ativa" ${dis}></td><td><input type="text" id="ct-n-${i}" data-ct="${i}" data-k="name" value="${esc(t.name)}" ${dis}></td><td><select id="ct-p-${i}" data-ct="${i}" data-k="phase" ${dis}>${order.map(p=>`<option value="${p}" ${t.phase===p?"selected":""}>${PHASES[p]}</option>`).join("")}</select></td><td style="white-space:nowrap"><input type="number" id="ct-d-${i}" data-ct="${i}" data-k="days" value="${Number(t.days||0)}" ${dis}></td><td><select id="ct-an-${i}" data-ct="${i}" data-k="anchor" ${dis}><option value="inicio" ${t.anchor!=="fim"?"selected":""}>antes do início</option><option value="fim" ${t.anchor==="fim"?"selected":""}>antes do fim</option></select></td><td><select id="ct-sn-${i}" data-ct="${i}" data-k="weekday" ${dis}><option value="" ${wdOf(t)==null?"selected":""}>Qualquer dia</option>${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${wdOf(t)===d?"selected":""}>${DIAS[d][0].toUpperCase()+DIAS[d].slice(1)}</option>`).join("")}</select></td><td>${cfgDraft.people.map(p=>`<label class="ochk"><input type="checkbox" id="ct-o-${i}-${p.id}" data-cto="${i}" data-pid="${p.id}" ${defOwners(t).includes(p.id)?"checked":""} ${dis}>${esc(p.name)}</label>`).join("")}</td><td>${canWrite?`<button class="iconbtn" data-ct-del="${i}" aria-label="Remover tarefa" type="button">×</button>`:""}</td></tr>`}).join("");
+  const t0=today(),byStart=(a,b)=>a.start<b.start?-1:1;
+  const campsL=campaigns.filter(c=>!isCol(c)).sort(byStart),colsL=campaigns.filter(isCol).sort(byStart);
+  const pick=(list,cur)=>{if(cur&&list.some(c=>c.id===cur))return cur;const up=list.find(c=>parseD(c.start)>=t0);return (up||list[list.length-1]||{}).id||null};
+  refCamp=pick(campsL,refCamp);refCol=pick(colsL,refCol);
+  const rc=campaigns.find(c=>c.id===refCamp),rk=campaigns.find(c=>c.id===refCol);
+  const dc=draftDates(cfgDraft.tasks,rc),dk=draftDates(cfgDraft.col,rk);
+  const refSel=(id,list,cur,lab)=>list.length?`<label class="small muted" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">Início e fim calculados para ${lab}<select class="sel" id="${id}">${list.map(c=>`<option value="${c.id}" ${c.id===cur?"selected":""}>${esc(c.name)} · ${brFull(parseD(c.start))}</option>`).join("")}</select></label>`:"";
+  const dcell=(pre,i,m)=>{const x=m&&m[i];if(!x)return `<td class="muted">—</td><td class="muted">—</td>`;return `<td><input type="date" data-${pre}s="${i}" value="${iso(x.start||x.due)}" aria-label="Início" ${dis}></td><td><input type="date" data-${pre}e="${i}" value="${iso(x.due)}" aria-label="Fim" ${dis}></td>`};
+  const mv=(pre,i,n)=>canWrite?`<td style="white-space:nowrap"><button class="iconbtn mv" data-${pre}up="${i}" ${i===0?"disabled":""} aria-label="Subir" type="button">↑</button><button class="iconbtn mv" data-${pre}dn="${i}" ${i===n-1?"disabled":""} aria-label="Descer" type="button">↓</button></td>`:"<td></td>";
+  const row=(pre,t,i,n,m,c,isC)=>{const x=m&&m[i];const A=c?(t.anchor==="fim"?parseD(c.end):parseD(c.start)):null;const daysV=t.dep&&x&&A?diff(A,x.due):Number(t.days||0);const lk=t.dep?"disabled":dis;
+    const owners=isC?defOwners(t):(t.owners||[]);const oattr=isC?"cto":"cco";
+    return `<tr>${mv(pre,i,n)}
+    <td><input type="text" id="${pre}-n-${i}" data-${pre}="${i}" data-k="name" value="${esc(t.name)}" ${dis}></td>
+    <td><select id="${pre}-p-${i}" data-${pre}="${i}" data-k="phase" ${dis}>${order.map(p=>`<option value="${p}" ${(t.phase||(isC?"execucao":"colecao"))===p?"selected":""}>${PHASES[p]}</option>`).join("")}</select></td>
+    <td style="text-align:center"><input type="checkbox" data-${pre}="${i}" data-k="dep" ${t.dep?"checked":""} ${i===0?"disabled":""} aria-label="Depende do término da anterior" ${dis}></td>
+    <td><input type="number" min="${isC?0:1}" id="${pre}-u-${i}" data-${pre}="${i}" data-k="dur" value="${Number(t.dur||0)}" aria-label="Duração em dias" ${dis}></td>
+    <td style="white-space:nowrap"><div style="display:flex;gap:4px;align-items:center"><input type="number" id="${pre}-d-${i}" data-${pre}="${i}" data-k="days" value="${daysV}" ${t.dep?`disabled title="Calculado a partir da tarefa anterior"`:dis}>${isC?`<select id="${pre}-an-${i}" data-${pre}="${i}" data-k="anchor" ${lk} style="min-width:0;width:auto"><option value="inicio" ${t.anchor!=="fim"?"selected":""}>antes do início</option><option value="fim" ${t.anchor==="fim"?"selected":""}>antes do fim</option></select>`:`<span class="small muted">antes do lançamento</span>`}</div></td>
+    ${x?`<td><input type="date" data-${pre}s="${i}" value="${iso(x.start||x.due)}" aria-label="Início" ${dis}></td><td><input type="date" data-${pre}e="${i}" value="${iso(x.due)}" aria-label="Fim" ${dis}></td>`:`<td class="muted">—</td><td class="muted">—</td>`}
+    <td style="text-align:center"><input type="checkbox" id="${pre}-c-${i}" data-${pre}="${i}" data-k="critica" ${t.critica?"checked":""} aria-label="Não pode acelerar" ${dis}></td>
+    <td><select id="${pre}-sn-${i}" data-${pre}="${i}" data-k="weekday" ${lk}><option value="" ${wdOf(t)==null?"selected":""}>Qualquer dia</option>${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${wdOf(t)===d?"selected":""}>${DIAS[d][0].toUpperCase()+DIAS[d].slice(1)}</option>`).join("")}</select></td>
+    <td>${cfgDraft.people.map(p=>`<label class="ochk"><input type="checkbox" id="${pre}-o-${i}-${p.id}" data-${oattr}="${i}" data-pid="${p.id}" ${owners.includes(p.id)?"checked":""} ${dis}>${esc(p.name)}</label>`).join("")}</td>
+    <td>${canWrite?`<button class="iconbtn" data-${pre}-del="${i}" aria-label="Remover" type="button">×</button>`:""}</td></tr>`};
+  const nT=cfgDraft.tasks.length,nC=cfgDraft.col.length;
+  const tks=cfgDraft.tasks.map((t,i)=>row("ct",t,i,nT,dc,rc,true)).join("");
+  const cols=cfgDraft.col.map((t,i)=>row("cc",t,i,nC,dk,rk,false)).join("");
+  const head=(lab,fim)=>`<thead><tr><th>Ordem</th><th style="min-width:260px">${lab}</th><th>Fase</th><th title="Marcado: só começa quando a anterior termina (o início é o fim da anterior)">Depende da anterior</th><th title="Quantos dias leva">Duração (dias)</th><th title="Quantos dias antes da data de referência é a entrega">Entrega (dias)</th><th>Início</th><th>${fim}</th><th title="Não tem como acelerar: se começar atrasada, empurra a data de lançamento">Não pode acelerar</th><th title="Ajusta a entrega para esse dia da semana, sem atrasar o cronograma">Dia da semana</th><th>Responsáveis</th><th></th></tr></thead>`;
   $("#v-config").innerHTML=`
    <div class="card"><div class="card-h"><h2>Equipe</h2>${canWrite?`<button class="btn sm" id="cp-add" type="button">+ Pessoa</button>`:""}</div>
     <div class="cfg-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th></th></tr></thead><tbody>${ppl}</tbody></table></div></div>
-   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">Vale para todas as coleções. A etapa começa “duração” dias antes da entrega; a entrega é X dias antes do lançamento.</div></div>${canWrite?`<button class="btn sm" id="cc-add" type="button">+ Etapa</button>`:""}</div>
-    <div class="cfg-table"><table><thead><tr><th>Ativa</th><th style="min-width:260px">Etapa</th><th>Duração (dias)</th><th>Entrega (dias antes do lançamento)</th><th title="Etapa que não tem como acelerar: se começar atrasada, empurra o lançamento">Não pode acelerar</th><th>Responsáveis</th><th></th></tr></thead><tbody>${cfgDraft.col.map((t,i)=>`<tr><td><input type="checkbox" id="cc-a-${i}" data-cc="${i}" data-k="active" ${t.active!==false?"checked":""} aria-label="Ativa" ${dis}></td><td><input type="text" id="cc-n-${i}" data-cc="${i}" data-k="name" value="${esc(t.name)}" ${dis}></td><td><input type="number" id="cc-u-${i}" data-cc="${i}" data-k="dur" value="${Number(t.dur||0)}" ${dis}></td><td><input type="number" id="cc-d-${i}" data-cc="${i}" data-k="days" value="${Number(t.days||0)}" ${dis}></td><td><input type="checkbox" id="cc-c-${i}" data-cc="${i}" data-k="critica" ${t.critica?"checked":""} aria-label="Não pode acelerar" ${dis}></td><td>${cfgDraft.people.map(p=>`<label class="ochk"><input type="checkbox" id="cc-o-${i}-${p.id}" data-cco="${i}" data-pid="${p.id}" ${(t.owners||[]).includes(p.id)?"checked":""} ${dis}>${esc(p.name)}</label>`).join("")}</td><td>${canWrite?`<button class="iconbtn" data-cc-del="${i}" aria-label="Remover etapa" type="button">×</button>`:""}</td></tr>`).join("")}</tbody></table></div>
+   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">Vale para todas as coleções. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a etapa inteira; “Depende da anterior” faz a etapa começar quando a anterior termina.</div>${refSel("cfg-refk",colsL,refCol,"a coleção")}</div>${canWrite?`<button class="btn sm" id="cc-add" type="button">+ Etapa</button>`:""}</div>
+    <div class="cfg-table"><table>${head("Etapa","Fim (entrega)")}<tbody>${cols}</tbody></table></div>
    </div>
-   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Campanhas</h2><div class="small muted">Vale para todas as campanhas. Prazo = data de início (ou fim) menos os dias. Use número negativo para “depois”.</div></div>${canWrite?`<button class="btn sm" id="ct-add" type="button">+ Tarefa no modelo</button>`:""}</div>
-    <div class="cfg-table"><table><thead><tr><th>Ativa</th><th style="min-width:280px">Tarefa</th><th>Fase</th><th>Dias</th><th>Referência</th><th title="Ajusta o prazo para esse dia da semana, sem atrasar o cronograma">Dia da semana</th><th>Responsáveis</th><th></th></tr></thead><tbody>${tks}</tbody></table></div>
+   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Campanhas</h2><div class="small muted">Vale para todas as campanhas. Prazo = data de início (ou fim) da campanha menos os dias; número negativo = depois. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a tarefa inteira.</div>${refSel("cfg-refc",campsL,refCamp,"a campanha")}</div>${canWrite?`<button class="btn sm" id="ct-add" type="button">+ Tarefa no modelo</button>`:""}</div>
+    <div class="cfg-table"><table>${head("Tarefa","Fim (prazo)")}<tbody>${tks}</tbody></table></div>
        ${canWrite?`<div class="savebar" id="cfg-savebar">${saveBarHtml()}</div>`:""}
    </div>`;
 }
@@ -640,8 +686,8 @@ function commit(list,label,okMsg){
   const ops=list.map(o=>({path:o.path,before:o.before!==undefined?clone(o.before):getLocal(o.path),after:clone(o.data)}));
   record(ops,label);
   return w(async()=>{for(const o of ops)await putDoc(o.path,o.after)},okMsg).then(ok=>{if(!ok){const i=hist.findIndex(h=>h.ops.includes(ops[0]));if(i>=0){hist[i].ops=hist[i].ops.filter(o=>!ops.includes(o));if(!hist[i].ops.length)hist.splice(i,1)}paintHist()}return ok})}
-async function undo(){const e=hist.pop();if(!e)return;paintHist();const ok=await w(async()=>{for(const o of [...e.ops].reverse())await putDoc(o.path,o.before)});if(ok){redoS.push(e);toast("Desfeito: "+e.label)}else hist.push(e);cfgDirty=false;render()}
-async function redo(){const e=redoS.pop();if(!e)return;paintHist();const ok=await w(async()=>{for(const o of e.ops)await putDoc(o.path,o.after)});if(ok){hist.push(e);toast("Refeito: "+e.label)}else redoS.push(e);cfgDirty=false;render()}
+async function undo(){const e=hist.pop();if(!e)return;paintHist();const ok=await w(async()=>{for(const o of [...e.ops].reverse())await putDoc(o.path,o.before)});if(ok){redoS.push(e);toast("Desfeito: "+e.label)}else hist.push(e);cfgDirty=false;keepDraft();render()}
+async function redo(){const e=redoS.pop();if(!e)return;paintHist();const ok=await w(async()=>{for(const o of e.ops)await putDoc(o.path,o.after)});if(ok){hist.push(e);toast("Refeito: "+e.label)}else redoS.push(e);cfgDirty=false;keepDraft();render()}
 function setStatus(sid,patch,label){
   const cur=statusMap[sid]||null;const next=Object.assign({},cur||{},patch,{updatedAt:new Date().toISOString()});
   for(const k of Object.keys(next)) if(next[k]===undefined||next[k]===null) delete next[k];
@@ -747,19 +793,35 @@ document.addEventListener("click",async e=>{
   if(d.ctDel!==undefined){cfgDraft.tasks.splice(Number(d.ctDel),1);cfgDirty=true;renderCfg();return}
   if(el.id==="cc-add"){cfgDraft.col.push({key:"c"+rid(),name:"Nova etapa",dur:5,days:5,anchor:"lanc",owners:[],active:true,phase:"colecao"});cfgDirty=true;renderCfg();return}
   if(d.ccDel!==undefined){cfgDraft.col.splice(Number(d.ccDel),1);cfgDirty=true;renderCfg();return}
-  if(el.id==="cfg-reset"){cfgDirty=false;renderCfg();return}
+  if(d.ctup!==undefined||d.ctdn!==undefined||d.ccup!==undefined||d.ccdn!==undefined){
+    const arr=(d.ctup!==undefined||d.ctdn!==undefined)?cfgDraft.tasks:cfgDraft.col;const i=Number(d.ctup??d.ctdn??d.ccup??d.ccdn);const j=(d.ctup!==undefined||d.ccup!==undefined)?i-1:i+1;
+    if(j<0||j>=arr.length)return;[arr[i],arr[j]]=[arr[j],arr[i]];if(arr[0])arr[0].dep=false;markDirty();renderCfg();return}
+  if(el.id==="cfg-reset"){cfgDirty=false;keepDraft();renderCfg();return}
   if(el.id==="cfg-save"){
     const people=cfgDraft.people.map(p=>({id:p.id,name:(p.name||"").trim()||"Sem nome",email:(p.email||"").trim(),whatsapp:(p.whatsapp||"").trim(),role:(p.role||"").trim()}));
-    const tasks=cfgDraft.tasks.map(t=>{const ow=defOwners(t).filter(id=>people.some(p=>p.id===id));return {key:t.key,name:(t.name||"").trim()||"Tarefa",phase:t.phase||"execucao",days:Number(t.days||0),anchor:t.anchor==="fim"?"fim":"inicio",weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),owners:ow,owner:ow[0]||"",active:t.active!==false}});
-    const col=cfgDraft.col.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(1,Number(t.dur||1)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,active:t.active!==false}));
+    const tasks=cfgDraft.tasks.map(t=>{const ow=defOwners(t).filter(id=>people.some(p=>p.id===id));return {key:t.key,name:(t.name||"").trim()||"Tarefa",phase:t.phase||"execucao",days:Number(t.days||0),dur:Math.max(0,Math.round(Number(t.dur)||0)),anchor:t.anchor==="fim"?"fim":"inicio",dep:!!t.dep,critica:!!t.critica,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),owners:ow,owner:ow[0]||"",active:t.active!==false}});
+    const col=cfgDraft.col.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:PHASES[t.phase]?t.phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(1,Number(t.dur||1)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,dep:!!t.dep,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),active:t.active!==false}));
     const ok=await commit([{path:"config/equipe",data:{people}},{path:"config/modelo",data:{tasks}},{path:"config/modeloColecao",data:{tasks:col}}],"equipe e modelos","Equipe e modelos salvos");
-    if(ok){team=people;templates=tasks;colTemplates=col;cfgDirty=false;render()}
+    if(ok){team=people;templates=tasks;colTemplates=col;cfgDirty=false;keepDraft();render()}
     return;
   }
   if(hadMenu&&!openMenu) render();
 });
 document.addEventListener("change",e=>{
   const el=e.target,d=el.dataset;
+  if(el.id==="cfg-refc"){refCamp=el.value;renderCfg();return}
+  if(el.id==="cfg-refk"){refCol=el.value;renderCfg();return}
+  if(d.cts!==undefined||d.cte!==undefined||d.ccs!==undefined||d.cce!==undefined){
+    const isC=d.cts!==undefined||d.cte!==undefined,i=Number(isC?(d.cts??d.cte):(d.ccs??d.cce));
+    const t=isC?cfgDraft.tasks[i]:cfgDraft.col[i],c=campaigns.find(x=>x.id===(isC?refCamp:refCol));
+    if(!t||!c||!el.value){renderCfg();return}
+    const v=parseD(el.value),dur=Number(t.dur||0);
+    const due=(d.cte!==undefined||d.cce!==undefined)?v:addDays(v,dur);
+    const A=t.anchor==="fim"?parseD(c.end):parseD(c.start);t.days=diff(A,due);
+    if(t.dep){t.dep=false;toast("Deixou de depender da anterior, porque a data foi definida à mão")}
+    const w=wdOf(t);if(w!=null&&!isNaN(w)&&due.getDay()!==w){t.weekday="";t.snap=false;toast("Dia da semana tirado para respeitar a data escolhida")}
+    else if(due.getDay()===0||due.getDay()===6)toast("O fim cai no fim de semana: vai para a sexta anterior");
+    markDirty();renderCfg();return}
   if(el.id==="f-camp"){filt.camp=el.value;saveUI();render();return}
   if(el.id==="f-show"){filt.show=el.value;saveUI();render();return}
   if(d.realstart){if(el.value){detMenu=null;setStatus(d.realstart,{startedAt:el.value})}return}
@@ -769,12 +831,13 @@ document.addEventListener("change",e=>{
   if(d.owner){setStatus(d.owner,{owner:el.value==="__def"?null:el.value,owners:null});return}
   if(d.cto!==undefined){const t=cfgDraft.tasks[Number(d.cto)];const s2=new Set(defOwners(t));el.checked?s2.add(d.pid):s2.delete(d.pid);t.owners=[...s2];t.owner=t.owners[0]||"";markDirty();return}
   if(d.cco!==undefined){const t=cfgDraft.col[Number(d.cco)];const s2=new Set(t.owners||[]);el.checked?s2.add(d.pid):s2.delete(d.pid);t.owners=[...s2];markDirty();return}
-  if(d.cc!==undefined){const t=cfgDraft.col[Number(d.cc)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();return}
+  if(d.cc!==undefined){const t=cfgDraft.col[Number(d.cc)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","dep","weekday"].includes(d.k))renderCfg();return}
   if(d.due){if(el.value){openMenu=null;setStatus(d.due,{due:el.value})}return}
   if(d.cp!==undefined){cfgDraft.people[Number(d.cp)][d.k]=el.value;markDirty();return}
-  if(d.ct!==undefined){const t=cfgDraft.tasks[Number(d.ct)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();return}
+  if(d.ct!==undefined){const t=cfgDraft.tasks[Number(d.ct)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","anchor","weekday","dep"].includes(d.k))renderCfg();return}
 });
-function markDirty(){cfgDirty=true;const sb=$("#cfg-savebar");if(sb)sb.innerHTML=saveBarHtml()}
+function keepDraft(){try{if(cfgDirty&&cfgDraft)localStorage.setItem("pmm-cfg-draft",JSON.stringify(cfgDraft));else localStorage.removeItem("pmm-cfg-draft")}catch(e){}}
+function markDirty(){cfgDirty=true;keepDraft();const sb=$("#cfg-savebar");if(sb)sb.innerHTML=saveBarHtml()}
 function saveBarHtml(){return `${cfgDirty?`<span class="small" style="color:var(--soon);font-weight:700">Alterações não salvas</span><button class="btn ghost" id="cfg-reset" type="button">Descartar</button>`:""}<button class="btn primary" id="cfg-save" type="button" ${cfgDirty?"":"disabled"}>Salvar equipe e modelos</button>`}
 document.addEventListener("input",e=>{const d=e.target.dataset;
   const tid=e.target.id;if(tid==="ee-dur"||tid==="ee-start"||tid==="ee-due"){const S=$("#ee-start"),U=$("#ee-dur"),E=$("#ee-due");if(S&&U&&E&&E.value){const ed=parseD(E.value);
@@ -864,4 +927,6 @@ else (async()=>{
   db.doc("config/modeloColecao").onSnapshot(s=>{colTemplates=(s.exists&&s.data().tasks)||[];got.k=true;maybeRender()},onErr);
 })();
 })();
-</script></body></html>
+</script>
+
+</html>
