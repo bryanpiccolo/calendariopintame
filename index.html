@@ -253,7 +253,7 @@ button{cursor:pointer}
       <h1>Calendário Pinta Me</h1>
       <div class="muted small" id="status-line">Carregando…</div>
     </div>
-    <div class="hbtns"><button class="btn ghost" id="undo" type="button" disabled title="Desfazer (Ctrl+Z)">↶ Desfazer</button><button class="btn ghost" id="redo" type="button" disabled title="Refazer (Ctrl+Shift+Z)">↷ Refazer</button><button class="btn ghost" id="export-team" type="button" hidden title="Gera o arquivo index.html só de visualização para subir no GitHub">⬇ Versão da equipe</button><button class="btn" id="new-col" type="button">+ Nova coleção</button><button class="btn primary" id="new-camp" type="button">+ Nova campanha</button></div>
+    <div class="hbtns"><button class="btn ghost" id="undo" type="button" disabled title="Desfazer (Ctrl+Z)">↶ Desfazer</button><button class="btn ghost" id="redo" type="button" disabled title="Refazer (Ctrl+Shift+Z)">↷ Refazer</button><button class="btn ghost" id="export-team" type="button" hidden title="Gera o arquivo index.html só de visualização para subir no GitHub">⬇ Versão da equipe</button><button class="btn" id="new-col" type="button">+ Nova coleção</button><button class="btn primary" id="new-camp" type="button">+ Nova promoção</button></div>
   </header>
 
   <section class="summary" id="summary" aria-label="Resumo"></section>
@@ -274,8 +274,8 @@ button{cursor:pointer}
 <div class="overlay" id="overlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="dlg-title">
     <form id="camp-form" novalidate>
-      <h2 id="dlg-title">Nova campanha</h2>
-      <label class="field"><span id="f-name-l">Nome da campanha</span><input type="text" id="f-name" required placeholder="Ex.: Black Friday"></label>
+      <h2 id="dlg-title">Nova promoção</h2>
+      <label class="field"><span id="f-name-l">Nome da promoção</span><input type="text" id="f-name" required placeholder="Ex.: Black Friday"></label>
       <div class="row2">
         <label class="field"><span id="f-start-l">Começa em</span><input type="date" id="f-start" required></label>
         <label class="field" id="f-end-w">Termina em<input type="date" id="f-end" required></label>
@@ -301,7 +301,7 @@ button{cursor:pointer}
 (function(){
 const COLORS=["#E8467C","#2D7FF9","#F5A500","#16A673","#FF7A2F","#7B5CFF","#12A4B8"];
 const AVATAR=["#E8467C","#2D7FF9","#16A673","#FF7A2F","#7B5CFF","#12A4B8","#C98A00"];
-const PHASES={planejamento:"Planejamento",criacao:"Criação",execucao:"Execução",pos:"Pós-campanha",colecao:"Coleção"};
+const PHASES={planejamento:"Planejamento",criacao:"Criação",execucao:"Execução",pos:"Pós-promoção",colecao:"Coleção"};
 const COLPH=["#7B5CFF","#2D7FF9","#FF7A2F","#16A673","#E8467C","#12A4B8","#C98A00"];
 const DAY=86400000;
 const ZW={4:20,6:13,12:6};
@@ -342,7 +342,7 @@ const isCol=c=>c&&c.tipo==="colecao";
 const tipoOk=c=>filt.tipo==="tudo"||(filt.tipo==="colecoes")===isCol(c);
 function namesOf(ids){const n=ids.map(pname);return n.length>1?n.slice(0,-1).join(", ")+" e "+n[n.length-1]:(n[0]||"Sem responsável")}
 function defOwners(t){return (t.owners&&t.owners.length)?t.owners:(t.owner?[t.owner]:[])}
-function tipoSeg(){return `<div class="seg-t" role="group" aria-label="Mostrar">${[["tudo","Tudo"],["campanhas","Campanhas"],["colecoes","Coleções"]].map(([v,l])=>`<button type="button" data-tipo="${v}" aria-pressed="${filt.tipo===v}">${l}</button>`).join("")}</div>`}
+function tipoSeg(){return `<div class="seg-t" role="group" aria-label="Mostrar">${[["tudo","Tudo"],["campanhas","Promoções"],["colecoes","Coleções"]].map(([v,l])=>`<button type="button" data-tipo="${v}" aria-pressed="${filt.tipo===v}">${l}</button>`).join("")}</div>`}
 const DIAS=["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 function wdOf(t){if(t.weekday!==undefined&&t.weekday!==null&&t.weekday!=="")return Number(t.weekday);return t.snap?1:null}
 function isAfter(t){return t.anchor==="fim"&&Number(t.days)<0}
@@ -423,7 +423,7 @@ function renderSummary(tasks){
   const focus=next||live[0];
   if(focus){const ft=tasks.filter(x=>x.camp.id===focus.id&&x.state!=="na");const dn=ft.filter(x=>x.state==="feito").length;const pct=ft.length?Math.round(dn/ft.length*100):0;
     prog=`<div class="lbl">Preparação · ${esc(focus.name)}</div><div class="big num">${pct}%</div><div class="sub num">${dn} de ${ft.length} tarefas feitas</div><div class="bar"><span style="width:${pct}%"></span></div>`}
-  else prog=`<div class="lbl">Preparação</div><div class="big">—</div><div class="sub">Cadastre uma campanha ou coleção</div>`;
+  else prog=`<div class="lbl">Preparação</div><div class="big">—</div><div class="sub">Cadastre uma promoção ou coleção</div>`;
   $("#summary").innerHTML=`<div class="tile">${t1}</div>
    <div class="tile late"><div class="lbl">Atrasadas</div><div class="big num">${late.length}</div><div class="sub">${late.length?esc(lateP.join(", ")):"Tudo em dia"}</div></div>
    <div class="tile soon"><div class="lbl">Vencem em 7 dias</div><div class="big num">${week.length}</div><div class="sub">${week.length?"até "+br(addDays(t,7)):"Nada para esta semana"}</div></div>
@@ -468,10 +468,10 @@ function renderCal(tasks){
    <div class="card">
      <div class="card-h"><h2>Linha do tempo</h2>${tipoSeg()}<div class="tl-nav"><div class="seg-t" role="group" aria-label="Período">${[[4,"4 meses"],[6,"6 meses"],[12,"1 ano"]].map(([v,l])=>`<button type="button" data-zoom="${v}" aria-pressed="${zoom===v}">${l}</button>`).join("")}</div>${years().map(y=>`<button class="btn sm" data-year="${y}" type="button">${y}</button>`).join("")}<button class="btn sm" data-tl="-1" type="button" aria-label="Voltar">←</button><button class="btn sm" data-tl="0" type="button">Hoje</button><button class="btn sm" data-tl="1" type="button" aria-label="Avançar">→</button></div></div>
      <div class="tl-scroll" id="tl-scroll"><div class="tl" style="width:${170+W}px">
-       <div class="tl-row tl-head"><div class="tl-lab" style="border-bottom:1px solid var(--line)"><span>${filt.tipo==="colecoes"?"Coleção":filt.tipo==="campanhas"?"Campanha":"Campanha / coleção"}</span></div><div class="tl-track" style="width:${W}px"><div class="tl-months">${months.map(m=>`<div style="width:${m.w}px">${m.label}</div>`).join("")}</div><div class="tl-days">${dayCells}</div></div></div>
+       <div class="tl-row tl-head"><div class="tl-lab" style="border-bottom:1px solid var(--line)"><span>${filt.tipo==="colecoes"?"Coleção":filt.tipo==="campanhas"?"Promoção":"Promoção / coleção"}</span></div><div class="tl-track" style="width:${W}px"><div class="tl-months">${months.map(m=>`<div style="width:${m.w}px">${m.label}</div>`).join("")}</div><div class="tl-days">${dayCells}</div></div></div>
        <div class="tl-body">${body}</div>${todayLine}
      </div></div>
-     <div class="legend"><span><i class="hatch" style="background:repeating-linear-gradient(135deg,#2D7FF955 0 6px,#2D7FF922 6px 12px)"></i>preparação</span><span><i style="background:#2D7FF9;width:22px;border-radius:5px"></i>campanha no ar</span><span><i style="background:var(--late)"></i>tarefa atrasada</span><span><i style="background:var(--soon)"></i>vence em até 3 dias</span><span><i style="background:var(--muted)"></i>no prazo</span><span><i style="background:var(--done)"></i>feita</span><span><i style="background:var(--today)"></i>hoje</span>${filt.tipo!=="campanhas"&&colTemplates.length?`<span style="flex-basis:100%;height:0"></span><span><b>Coleções:</b></span>${colTemplates.filter(k=>k.active!==false).map((k,i)=>`<span><i style="background:${COLPH[i%COLPH.length]};width:22px;border-radius:4px"></i>${esc(shortName(k.name))}</span>`).join("")}<span><i style="background:#1D2140;transform:rotate(45deg);border-radius:2px"></i>lançamento</span>`:""}</div>
+     <div class="legend"><span><i class="hatch" style="background:repeating-linear-gradient(135deg,#2D7FF955 0 6px,#2D7FF922 6px 12px)"></i>preparação</span><span><i style="background:#2D7FF9;width:22px;border-radius:5px"></i>promoção no ar</span><span><i style="background:var(--late)"></i>tarefa atrasada</span><span><i style="background:var(--soon)"></i>vence em até 3 dias</span><span><i style="background:var(--muted)"></i>no prazo</span><span><i style="background:var(--done)"></i>feita</span><span><i style="background:var(--today)"></i>hoje</span>${filt.tipo!=="campanhas"&&colTemplates.length?`<span style="flex-basis:100%;height:0"></span><span><b>Coleções:</b></span>${colTemplates.filter(k=>k.active!==false).map((k,i)=>`<span><i style="background:${COLPH[i%COLPH.length]};width:22px;border-radius:4px"></i>${esc(shortName(k.name))}</span>`).join("")}<span><i style="background:#1D2140;transform:rotate(45deg);border-radius:2px"></i>lançamento</span>`:""}</div>
    </div>
    <div class="card"><div class="card-h"><h2>Entregas desta semana e atrasadas</h2><button class="btn sm" data-view-go="tarefas" type="button">Ver todas as tarefas</button></div><div class="up">${upHtml}</div></div>`;
   const sc=$("#tl-scroll"); if(sc&&tlOffset===0&&tx>=0) sc.scrollLeft=Math.max(0,tx*DW-(big?7:20)*DW);
@@ -501,7 +501,7 @@ function renderTasks(tasks){
   const t=today();
   const pChips=[`<button class="chip" data-fp="all" aria-pressed="${filt.person==="all"}" type="button">Todos</button>`].concat(team.map(p=>`<button class="chip" data-fp="${p.id}" aria-pressed="${filt.person===p.id}" type="button">${esc(p.name)}</button>`)).join("");
   const sorted=campaigns.filter(tipoOk).sort((a,b)=>a.start<b.start?-1:1);
-  const campOpts=`<option value="all">${filt.tipo==="colecoes"?"Todas as coleções":filt.tipo==="campanhas"?"Todas as campanhas":"Todas as campanhas e coleções"}</option>`+sorted.map(c=>`<option value="${c.id}" ${filt.camp===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
+  const campOpts=`<option value="all">${filt.tipo==="colecoes"?"Todas as coleções":filt.tipo==="campanhas"?"Todas as promoções":"Todas as promoções e coleções"}</option>`+sorted.map(c=>`<option value="${c.id}" ${filt.camp===c.id?"selected":""}>${esc(c.name)}</option>`).join("");
   const showOpts=[["abertas","Só abertas"],["todas","Todas"],["atrasadas","Só atrasadas"]].map(([v,l])=>`<option value="${v}" ${filt.show===v?"selected":""}>${l}</option>`).join("");
   let groups="";
   const cs=sorted.filter(c=>filt.camp==="all"||filt.camp===c.id).filter(c=>filt.camp!=="all"||campPhase(c)!=="encerrada"||filt.show==="todas");
@@ -514,11 +514,11 @@ function renderTasks(tasks){
     ct.sort((a,b)=>a.due-b.due);
     const col=c.color||COLORS[0], ph=campPhase(c);
     const rows=ct.map(k=>taskRow(k)).join("")||`<div class="ok-empty" style="color:var(--muted);font-weight:600">Nenhuma tarefa com esses filtros.</div>`;
-    const addx=addxOpen===c.id?`<form class="addx" data-addx="${c.id}"><input type="text" id="ax-name-${c.id}" placeholder="Nova tarefa só desta ${isCol(c)?"coleção":"campanha"}" required><input type="number" id="ax-days-${c.id}" value="7" aria-label="Dias antes do início"><span class="small muted">dias antes</span><select id="ax-owner-${c.id}">${team.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select><button class="btn sm primary" type="submit">Adicionar</button><button class="btn sm ghost" type="button" data-addx-close>Cancelar</button></form>`:"";
+    const addx=addxOpen===c.id?`<form class="addx" data-addx="${c.id}"><input type="text" id="ax-name-${c.id}" placeholder="Nova tarefa só desta ${isCol(c)?"coleção":"promoção"}" required><input type="number" id="ax-days-${c.id}" value="7" aria-label="Dias antes do início"><span class="small muted">dias antes</span><select id="ax-owner-${c.id}">${team.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join("")}</select><button class="btn sm primary" type="submit">Adicionar</button><button class="btn sm ghost" type="button" data-addx-close>Cancelar</button></form>`:"";
     groups+=`<div class="card group"><div class="group-h"><span class="swatch" style="background:${col}"></span>${isCol(c)?`<span class="ctype">Coleção</span>`:""}<h3>${esc(c.name)}</h3>${c.exemplo?`<span class="tag">exemplo</span>`:""}<span class="small muted">${isCol(c)?"lançamento "+br(parseD(c.start)):br(parseD(c.start))+" → "+br(parseD(c.end))+" · "+ph}${c.mecanica?" · "+esc(c.mecanica):""}</span>${c.notas?obsLine(c.notas,"obs-c","c:"+c.id):""}<span style="margin-left:auto;display:flex;gap:8px;align-items:center"><span class="small muted num">${dn}/${all.length} feitas</span>${isCol(c)?`<button class="btn sm" data-detail="${c.id}" type="button">Ver etapas</button>`:""}${canWrite?`<button class="btn sm" data-addx-open="${c.id}" type="button">+ Tarefa</button><button class="btn sm" data-edit="${c.id}" type="button">Editar</button>`:""}</span></div>${rows}${addx}</div>`;
   }
   if(!campaigns.length) groups=emptyState();
-  $("#v-tarefas").innerHTML=`<div class="filters">${tipoSeg()}</div><div class="filters">${pChips}</div><div class="filters"><select class="sel" id="f-camp" aria-label="Campanha">${campOpts}</select><select class="sel" id="f-show" aria-label="Mostrar">${showOpts}</select>${obsBtn()}</div>${groups}`;
+  $("#v-tarefas").innerHTML=`<div class="filters">${tipoSeg()}</div><div class="filters">${pChips}</div><div class="filters"><select class="sel" id="f-camp" aria-label="Promoção">${campOpts}</select><select class="sel" id="f-show" aria-label="Mostrar">${showOpts}</select>${obsBtn()}</div>${groups}`;
 }
 function ownerSel(k){
   return `<button type="button" class="sel owner-btn" data-etedit="${k.sid}" ${canWrite?"":"disabled"} title="${esc(namesOf(k.owners))} — clique para editar">${esc(namesOf(k.owners))}</button>`;
@@ -575,11 +575,11 @@ function taskRow(k){
    <div class="menu">${canWrite?`<button class="iconbtn" data-menu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${menu}</div>
   </div>${etEdit===k.sid?editForm(k,{s:k.start||k.due,e:k.due}):""}`;
 }
-function emptyState(){return `<div class="card empty"><h3>Nada cadastrado ainda</h3><p class="muted" style="margin:0;max-width:46ch">Cadastre a data de início e fim e as tarefas de cada pessoa aparecem com prazo automático.</p>${canWrite?`<button class="btn primary" data-new type="button">+ Nova campanha</button>`:""}</div>`}
+function emptyState(){return `<div class="card empty"><h3>Nada cadastrado ainda</h3><p class="muted" style="margin:0;max-width:46ch">Cadastre a data de início e fim e as tarefas de cada pessoa aparecem com prazo automático.</p>${canWrite?`<button class="btn primary" data-new type="button">+ Nova promoção</button>`:""}</div>`}
 
 function cobMsg(p,list){
   const lines=list.map(k=>{const d=diff(k.due,today());const when=d<0?`venceu ${brFull(k.due)} (${-d} dia${-d>1?"s":""} de atraso)`:d===0?"vence HOJE":`vence ${brFull(k.due)}`;return `• ${k.name} — ${k.camp.name} — ${when}`});
-  return `Oi ${p.name.split(" ")[0]}! Lembrete das tarefas do calendário (campanhas e coleções):\n${lines.join("\n")}\n\nQuando terminar, marca como feita no Calendário Pinta Me. Obrigada!`;
+  return `Oi ${p.name.split(" ")[0]}! Lembrete das tarefas do calendário (promoções e coleções):\n${lines.join("\n")}\n\nQuando terminar, marca como feita no Calendário Pinta Me. Obrigada!`;
 }
 function renderCob(tasks){
   const t=today();
@@ -590,7 +590,7 @@ function renderCob(tasks){
     const head=`<div class="person-h"><span class="avatar" style="background:${AVATAR[i%AVATAR.length]}">${esc((p.name||"?").trim()[0]||"?")}</span><div style="flex:1;min-width:0"><h3>${esc(p.name)}</h3><div class="small muted">${late?`<b style="color:var(--late)">${late} atrasada${late>1?"s":""}</b> · `:""}${list.length-late} vencendo em até 3 dias</div></div></div>`;
     if(!list.length) return `<div class="card person">${head}<div class="ok-empty">Em dia ✓</div></div>`;
     const msg=cobMsg(p,list);
-    const mail=p.email?`mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent("Tarefas de campanha pendentes")}&body=${encodeURIComponent(msg)}`:"";
+    const mail=p.email?`mailto:${encodeURIComponent(p.email)}?subject=${encodeURIComponent("Tarefas de promoção pendentes")}&body=${encodeURIComponent(msg)}`:"";
     return `<div class="card person">${head}<ul>${list.map(k=>{const st=tstat(k);return `<li><span>${esc(k.name)}<br><span class="small muted">${esc(k.camp.name)}</span></span><span class="pill ${st.cls}">${st.label}</span></li>`}).join("")}</ul>
       <pre class="msg" id="msg-${p.id}">${esc(msg)}</pre>
       <div class="person-f"><button class="btn sm primary" data-copy="${p.id}" type="button">Copiar lembrete</button>${mail?`<a class="btn sm" href="${mail}" target="_blank" rel="noopener">E-mail</a>`:""}${!mail?`<span class="small muted" style="align-self:center">Cadastre o e-mail na aba Equipe</span>`:""}</div></div>`;
@@ -648,7 +648,7 @@ function renderCfg(){
    <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">Vale para todas as coleções. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a etapa inteira; “Depende da anterior” faz a etapa começar quando a anterior termina.</div>${refSel("cfg-refk",colsL,refCol,"a coleção")}</div>${canWrite?`<button class="btn sm" id="cc-add" type="button">+ Etapa</button>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Fim (entrega)")}<tbody>${cols}</tbody></table></div>
    </div>
-   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Campanhas</h2><div class="small muted">Vale para todas as campanhas. Prazo = data de início (ou fim) da campanha menos os dias; número negativo = depois. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a tarefa inteira.</div>${refSel("cfg-refc",campsL,refCamp,"a campanha")}</div>${canWrite?`<button class="btn sm" id="ct-add" type="button">+ Tarefa no modelo</button>`:""}</div>
+   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Vale para todas as promoções. Prazo = data de início (ou fim) da promoção menos os dias; número negativo = depois. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a tarefa inteira.</div>${refSel("cfg-refc",campsL,refCamp,"a promoção")}</div>${canWrite?`<button class="btn sm" id="ct-add" type="button">+ Tarefa no modelo</button>`:""}</div>
     <div class="cfg-table"><table>${head("Tarefa","Fim (prazo)")}<tbody>${tks}</tbody></table></div>
        ${canWrite?`<div class="savebar" id="cfg-savebar">${saveBarHtml()}</div>`:""}
    </div>`;
@@ -661,7 +661,7 @@ async function w(fn,okMsg){
   catch(e){
     if(e&&e.code==="invalid_argument"){canWrite=false;render();toast("Você tem acesso só de leitura")}
     else if(e&&e.code==="unavailable"){try{await new Promise(r=>setTimeout(r,500+Math.random()*700));await fn();if(okMsg)toast(okMsg);return true}catch(e2){toast("Não salvou — tente de novo")}}
-    else if(e&&e.code==="quota_exceeded"){toast("Limite de dados atingido: exclua campanhas antigas")}
+    else if(e&&e.code==="quota_exceeded"){toast("Limite de dados atingido: exclua promoções antigas")}
     else toast("Não salvou — tente de novo");
     return false;
   }
@@ -702,8 +702,8 @@ function openModal(id,tipo){
   editing=id||null;delArm=false;
   const c=id?campaigns.find(x=>x.id===id):null;
   editTipo=c?(isCol(c)?"colecao":"campanha"):(tipo||"campanha");const col=editTipo==="colecao";
-  $("#dlg-title").textContent=(c?"Editar ":"Nova ")+(col?"coleção":"campanha");
-  $("#f-name-l").textContent=col?"Nome da coleção":"Nome da campanha";$("#f-name").placeholder=col?"Ex.: Outono/Inverno 2027":"Ex.: Black Friday";
+  $("#dlg-title").textContent=(c?"Editar ":"Nova ")+(col?"coleção":"promoção");
+  $("#f-name-l").textContent=col?"Nome da coleção":"Nome da promoção";$("#f-name").placeholder=col?"Ex.: Outono/Inverno 2027":"Ex.: Black Friday";
   $("#f-start-l").textContent=col?"Data de lançamento":"Começa em";$("#f-end-w").hidden=col;
   $("#f-mec-l").textContent=col?"Descrição da coleção":"Mecânica da promoção";$("#f-mec").placeholder=col?"Ex.: coleção de frio, 12 modelos":"Ex.: 20% off + canetinhas extras acima de R$ 250";
   $("#f-name").value=c?.name||"";
@@ -714,7 +714,7 @@ function openModal(id,tipo){
   pickColor=c?.color||COLORS[campaigns.length%COLORS.length];
   paintColors();
   $("#f-err").hidden=true;
-  const del=$("#f-del");del.hidden=!c;del.textContent="Excluir campanha";
+  const del=$("#f-del");del.hidden=!c;del.textContent="Excluir promoção";
   $("#overlay").hidden=false;setTimeout(()=>$("#f-name").focus(),30);
 }
 function paintColors(){$("#f-colors").innerHTML=COLORS.map(c=>`<button type="button" style="background:${c}" data-color="${c}" aria-pressed="${c===pickColor}" aria-label="Cor ${c}"></button>`).join("")}
@@ -729,7 +729,7 @@ async function saveModal(){
   const base=editing?campaigns.find(x=>x.id===editing):{};
   const data={tipo:col?"colecao":"campanha",name,start,end,color:pickColor,mecanica:$("#f-mec").value.trim(),notas:$("#f-notes").value.trim(),extras:base?.extras||[],createdAt:base?.createdAt||new Date().toISOString()};
   const id=editing||db.collection("campaigns").doc().id;
-  const ok=await commit([{path:"campaigns/"+id,data}],(editing?"editar ":"criar ")+name,(col?"Coleção ":"Campanha ")+(editing?"atualizada":"criada"));
+  const ok=await commit([{path:"campaigns/"+id,data}],(editing?"editar ":"criar ")+name,(col?"Coleção ":"Promoção ")+(editing?"atualizada":"criada"));
   if(ok)closeModal();
 }
 async function deleteCamp(){
@@ -884,7 +884,7 @@ $("#overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeModal
 const INBOX="pintamemais@gmail.com";
 function teamDone(sid){const k=allTasks().find(x=>x.sid===sid);if(!k)return;
   const subj="Feito: "+k.name+" — "+k.camp.name;
-  const body="FEITO "+sid+"\n\nTarefa: "+k.name+"\n"+(isCol(k.camp)?"Coleção":"Campanha")+": "+k.camp.name+"\n\n(É só enviar este e-mail como está. Envie do seu e-mail cadastrado na equipe. A tarefa aparece como feita no calendário na próxima atualização.)";
+  const body="FEITO "+sid+"\n\nTarefa: "+k.name+"\n"+(isCol(k.camp)?"Coleção":"Promoção")+": "+k.camp.name+"\n\n(É só enviar este e-mail como está. Envie do seu e-mail cadastrado na equipe. A tarefa aparece como feita no calendário na próxima atualização.)";
   location.href="mailto:"+INBOX+"?subject="+encodeURIComponent(subj)+"&body="+encodeURIComponent(body);
   toast("Abrindo seu e-mail — é só enviar")}
 function teamChrome(){["#undo","#redo","#new-col","#new-camp","#export-team"].forEach(x=>{const b=$(x);if(b)b.hidden=true});
@@ -904,7 +904,7 @@ function statusLine(){
   if(TEAM){if(!SNAP){el.textContent="Carregando…";return}const g=new Date(SNAP.geradoEm);el.textContent="Versão da equipe · atualizada em "+g.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" às "+g.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"})+" · terminou uma tarefa? Clique no círculo ao lado dela para avisar por e-mail";return}
   if(!db){el.textContent=ready?"Abra este painel pelo Claude para ver e salvar os dados da equipe.":"Carregando…";return}
   const nc=campaigns.filter(isCol).length,np=campaigns.length-nc;
-  el.textContent=`${np} campanha${np===1?"":"s"} · ${nc} coleç${nc===1?"ão":"ões"} · ${team.length} pessoas · atualiza ao vivo para todo o time${canWrite?"":" · somente leitura"}`;
+  el.textContent=`${np} promoç${np===1?"ão":"ões"} · ${nc} coleç${nc===1?"ão":"ões"} · ${team.length} pessoas · atualiza ao vivo para todo o time${canWrite?"":" · somente leitura"}`;
 }
 function maybeRender(){if(got.c&&got.s&&got.t&&got.m&&got.k){ready=true;statusLine();render()}}
 render();
