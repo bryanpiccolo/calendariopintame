@@ -653,27 +653,42 @@ function depKeys(t,list,idx){if(Array.isArray(t.deps))return t.deps;if(t.dep&&li
 function fixedDue(t,c){const s0=parseD(c.start),e0=parseD(c.end);const anchor=t.anchor==="fim"?e0:s0;let due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
   if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
   return isAfter(t)?bizFwd(due):bizBack(due)}
-function calcList(list,c,stOf){
-  const n=list.length,L=bizBack(parseD(c.start));
+function calcList(list,c,stOf,raw){
+  const BB=raw?(d=>d):bizBack,BF=raw?(d=>d):bizFwd;
+  const n=list.length,L=BB(parseD(c.start));
   const st=list.map(t=>(stOf&&stOf(t))||{});
   const dur=list.map((t,i)=>st[i].dur!=null?Number(st[i].dur):Number(t.dur||0));
   const idx={};list.forEach((t,i)=>{if(idx[t.key]==null)idx[t.key]=i});
   const isNA=i=>st[i].state==="na";
-  const deps=list.map((t,i)=>{if(!Array.isArray(t.deps)&&t.dep){for(let j=i-1;j>=0;j--)if(!isNA(j))return [j];return []}return depKeys(t,list,i).map(k=>idx[k]).filter(j=>j!=null&&j!==i)});
+  const legacy=i=>!Array.isArray(list[i].deps)&&!!list[i].dep&&list[i].mode==null;
+  const deps=list.map((t,i)=>{if(legacy(i)){for(let j=i-1;j>=0;j--)if(!isNA(j))return [j];return []}return depKeys(t,list,i).map(k=>idx[k]).filter(j=>j!=null&&j!==i)});
   const succ=list.map(()=>[]);deps.forEach((ds,i)=>ds.forEach(j=>succ[j].push(i)));
-  const due=new Array(n),beg=new Array(n),gate=new Array(n),mark=new Array(n).fill(0);
-  function predEnd(js,seen){let m=null;for(const j of js){if(seen.has(j))continue;seen.add(j);let v;if(isNA(j))v=predEnd(deps[j],seen);else{solve(j);v=due[j]}if(v!=null&&(m==null||v>m))m=v}return m}
-  function solve(i){if(mark[i]===2)return;if(mark[i]===1){due[i]=L;beg[i]=L;gate[i]=L;return}mark[i]=1;const t=list[i],du=dur[i];let d,b;
-    if(st[i].due){d=parseD(st[i].due);b=du>0?bizBack(addDays(d,-du)):null}
-    else if(isApos(t)){const m=predEnd(deps[i],new Set([i]));if(m!=null){d=bizFwd(addDays(m,du));b=du>0?m:null}else{d=fixedDue(t,c);b=du>0?bizBack(addDays(d,-du)):null}}
-    else if(isAuto(t)){let m=null;for(const k of succ[i]){if(isApos(list[k])&&!st[k].due)continue;solve(k);if(m==null||gate[k]<m)m=gate[k]}d=bizBack(m||L);b=du>0?bizBack(addDays(d,-du)):null}
-    else{d=fixedDue(t,c);b=du>0?bizBack(addDays(d,-du)):null}
-    due[i]=d;beg[i]=b;gate[i]=isNA(i)?d:(b||d);mark[i]=2}
-  for(let i=0;i<n;i++)solve(i);
-  return list.map((t,i)=>{const r={due:due[i],start:beg[i],dur:dur[i],mode:st[i].due?"fixa":modeOf(t)};
-    if(!isNA(i)){const myS=gate[i];const late=deps[i].filter(j=>!isNA(j)&&due[j]>myS);if(late.length)r.conflict=late}
-    return r})}
-function draftDates(list,c){if(!c)return null;const act=list.map((t,i)=>({t,i})).filter(x=>x.t.active!==false);const r=calcList(act.map(x=>x.t),c,null);const m={};act.forEach((x,j)=>m[x.i]=r[j]);return m}
+  const fd=t=>{const d=fixedDue(t,c);return raw?(()=>{const s0=parseD(c.start),e0=parseD(c.end);return addDays(t.anchor==="fim"?e0:s0,-Number(t.days||0))})():d};
+  function run(B){
+    const due=new Array(n),beg=new Array(n),gate=new Array(n),mark=new Array(n).fill(0),root=new Array(n).fill(false);
+    function predEnd(js,seen){let m=null;for(const j of js){if(seen.has(j))continue;seen.add(j);let v;if(isNA(j))v=predEnd(deps[j],seen);else{solve(j);v=due[j]}if(v!=null&&(m==null||v>m))m=v}return m}
+    function solve(i){if(mark[i]===2)return;if(mark[i]===1){due[i]=L;beg[i]=L;gate[i]=L;return}mark[i]=1;const t=list[i],du=dur[i];let d,b;
+      if(st[i].due){d=parseD(st[i].due);b=du>0?BB(addDays(d,-du)):null}
+      else if(isApos(t)){const m=predEnd(deps[i],new Set([i]));
+        if(m!=null){d=BF(addDays(m,du));b=du>0?m:null}
+        else if(!legacy(i)&&B){root[i]=true;const s0=BF(B);d=BF(addDays(s0,du));b=du>0?s0:null}
+        else{d=fd(t);b=du>0?BB(addDays(d,-du)):null}}
+      else if(isAuto(t)){let m=null;for(const k of succ[i]){if(isApos(list[k])&&!st[k].due)continue;solve(k);if(m==null||gate[k]<m)m=gate[k]}d=BB(m||L);b=du>0?BB(addDays(d,-du)):null}
+      else{d=fd(t);b=du>0?BB(addDays(d,-du)):null}
+      due[i]=d;beg[i]=b;gate[i]=isNA(i)?d:(b||d);mark[i]=2}
+    for(let i=0;i<n;i++)solve(i);
+    // descendants of roots (Logo após chains started by a root)
+    const net=new Set();const q=[];root.forEach((r,i)=>{if(r){net.add(i);q.push(i)}});
+    while(q.length){const i=q.pop();for(const k of succ[i])if(!net.has(k)&&isApos(list[k])&&!st[k].due){net.add(k);q.push(k)}}
+    let E=null;net.forEach(i=>{if(!isNA(i)&&(E==null||due[i]>E))E=due[i]});
+    return {due,beg,gate,E,hasRoot:net.size>0}}
+  let r=run(L);
+  if(r.hasRoot&&r.E){let B=addDays(L,-diff(r.E,L));for(let k=0;k<4;k++){r=run(B);const over=diff(r.E,L);if(over===0)break;B=addDays(B,-over)}}
+  const {due,beg,gate}=r;
+  return list.map((t,i)=>{const o={due:due[i],start:beg[i],dur:dur[i],mode:st[i].due?"fixa":modeOf(t)};
+    if(!isNA(i)){const myS=gate[i];const late=deps[i].filter(j=>!isNA(j)&&due[j]>myS);if(late.length)o.conflict=late}
+    return o})}
+function draftDates(list,c){if(!c)return null;const act=list.map((t,i)=>({t,i})).filter(x=>x.t.active!==false);const r=calcList(act.map(x=>x.t),c,null,true);const m={};act.forEach((x,j)=>m[x.i]=r[j]);return m}
 function renderCfg(){
   if(!cfgDraft&&!TEAM){try{const k=JSON.parse(localStorage.getItem("pmm-cfg-draft")||"null");if(k&&k.people&&k.tasks&&k.col){if(!k.spot)k.spot=JSON.parse(JSON.stringify(spotTpl()));cfgDraft=k;cfgDirty=true;setTimeout(()=>toast("Recuperei alterações que não tinham sido salvas"),50)}}catch(e){}}
   if(!cfgDirty||!cfgDraft) cfgDraft={people:JSON.parse(JSON.stringify(team)),tasks:JSON.parse(JSON.stringify(templates)),col:JSON.parse(JSON.stringify(colTemplates)),spot:JSON.parse(JSON.stringify(spotTpl()))};
@@ -683,6 +698,7 @@ function renderCfg(){
   const FAKE={campanha:{id:"_p",start:"2030-01-09",end:"2030-01-18"},colecao:{id:"_c",tipo:"colecao",start:"2030-01-09",end:"2030-01-09"}};
   const dc=draftDates(cfgDraft.tasks,FAKE.campanha),dk=draftDates(cfgDraft.col,FAKE.colecao),ds=draftDates(cfgDraft.spot,FAKE.colecao);
   const relP=d=>{const S=parseD(FAKE.campanha.start),E=parseD(FAKE.campanha.end);if(d<S){const n=diff(S,d);return n+"d antes do início"}if(+d===+S)return "no início";if(+d===+E)return "no último dia";if(d>E)return diff(d,E)+"d após o fim";return (diff(d,S)+1)+"º dia"};
+  const tot=(m,c,lab)=>{const xs=Object.values(m||{});if(!xs.length)return "";const mn=xs.reduce((a,x)=>{const v=x.start||x.due;return v<a?v:a},xs[0].start||xs[0].due);const n=diff(parseD(c.start),mn);return n>0?`Começa ${n} dias antes ${lab} (contando a etapa que começa mais cedo).`:""};
   const relC=d=>{const L=parseD(FAKE.colecao.start);const n=diff(L,d);return n===0?"no lançamento":n>0?n+"d antes":(-n)+"d após"};
   const dcell=(pre,i,m)=>{const x=m&&m[i];if(!x)return `<td class="muted">—</td><td class="muted">—</td>`;return `<td><input type="date" data-${pre}s="${i}" value="${iso(x.start||x.due)}" aria-label="Início" ${dis}></td><td><input type="date" data-${pre}e="${i}" value="${iso(x.due)}" aria-label="Fim" ${dis}></td>`};
   const mv=(pre,i,n)=>canWrite?`<td style="white-space:nowrap"><button class="iconbtn mv" data-${pre}up="${i}" ${i===0?"disabled":""} aria-label="Subir" type="button">↑</button><button class="iconbtn mv" data-${pre}dn="${i}" ${i===n-1?"disabled":""} aria-label="Descer" type="button">↓</button></td>`:"<td></td>";
@@ -712,13 +728,13 @@ function renderCfg(){
    <div class="card"><div class="card-h"><h2>Equipe</h2>${canWrite?`<button class="btn sm" id="cp-add" type="button">+ Pessoa</button>`:""}</div>
     <div class="cfg-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th></th></tr></thead><tbody>${ppl}</tbody></table></div></div>
    <div class="note" style="margin:0 0 12px">Os modelos valem para as <b>próximas</b> promoções, coleções e spots que forem criados. Os que já existem têm as próprias tarefas: para mudar um deles, edite direto no Calendário (clicando nele) ou na aba Tarefas.</div>
-   <div class="card" data-model="tasks"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Etapas <b>Automáticas</b> terminam quando começa a tarefa que depende delas, e a que ninguém depende termina no início da promoção. Use “Data fixa” para o que tem dia certo (ex.: 0 dias antes do fim = último dia).</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="tasks" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="tasks" type="button">+ Tarefa</button></span>`:""}</div>
+   <div class="card" data-model="tasks"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Etapas <b>Automáticas</b> terminam quando começa a tarefa que depende delas, e a que ninguém depende termina no início da promoção. Use “Data fixa” para o que tem dia certo (ex.: 0 dias antes do fim = último dia).</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dc,FAKE.campanha,"do início da promoção")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="tasks" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="tasks" type="button">+ Tarefa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Tarefa","Termina")}<tbody>${tks}</tbody></table></div>
    </div>
-   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo.</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as datas caem em dias úteis. Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar no lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dk,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${cols}</tbody></table></div>
    </div>
-   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo.</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as datas caem em dias úteis. Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar no lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(ds,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${spots}</tbody></table></div>
    </div>
    <div class="card">
