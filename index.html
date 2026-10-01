@@ -69,6 +69,16 @@ button{cursor:pointer}
 .tile .sub{font-size:13px;color:var(--muted);overflow-wrap:anywhere}
 .tile.late .big{color:var(--late)}
 .tile.soon .big{color:var(--soon)}
+button.tile{font:inherit;color:inherit;text-align:left;cursor:pointer}
+button.tile:hover{border-color:var(--ink)}
+button.tile[aria-expanded=true]{box-shadow:inset 0 0 0 2px var(--ink)}
+.tile .more{font-size:12px;font-weight:800;color:var(--ink);margin-top:2px}
+.kpi-list{grid-column:1/-1;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.kpi-list .kh{display:flex;align-items:center;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line);font-weight:800}
+.kpi-list .ki{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;padding:9px 16px;border-bottom:1px solid var(--line);cursor:pointer}
+.kpi-list .ki:last-child{border-bottom:0}
+.kpi-list .ki:hover{background:var(--surface-2)}
+.kpi-list .ki small{display:block;color:var(--muted);font-size:12px}
 .bar{height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;margin-top:6px}
 .bar>span{display:block;height:100%;background:var(--done);border-radius:3px}
 @media (max-width:820px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -223,6 +233,15 @@ button{cursor:pointer}
 .addet label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:700;color:var(--muted)}
 .addet input[type=text],.addet input[type=date],.addet input[type=number]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font-size:14px}
 .clickable{cursor:pointer}
+.dt-lab[data-gsel],.dt-bar[data-gsel]{cursor:pointer}
+.dt-lab[data-gsel]:hover{background:var(--surface-2)}
+.dt-row.sel .dt-lab{background:var(--surface-2);box-shadow:inset 3px 0 0 var(--ink)}
+.dt-row.sel .dt-bar{box-shadow:0 0 0 2px var(--ink)}
+.dt-panel{position:sticky;left:0;z-index:5;background:var(--surface-2);border-bottom:1px solid var(--line);box-sizing:border-box}
+.dt-panel .gp-h{display:flex;flex-wrap:wrap;gap:8px 12px;align-items:center;padding:12px 16px 4px}
+.dt-panel .gp-a{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:6px 16px 10px}
+.dt-panel .gp-a label{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:700;color:var(--muted)}
+.dt-panel .addet{background:transparent;border-top:1px solid var(--line)}
 .obs{display:block;margin-top:3px;font-size:12.5px;line-height:1.4;color:var(--muted);font-style:italic;white-space:pre-wrap;overflow-wrap:anywhere}
 .obs-tg{border:none;background:none;padding:0 3px;font-size:13px;cursor:pointer;border-radius:5px;line-height:1.3}
 .obs-tg:hover{background:var(--surface-2)}
@@ -318,7 +337,7 @@ let view="calendario", tlOffset=0, openMenu=null, zoom=12, showObs=true, obsFlip
 let filt={person:"all",camp:"all",show:"abertas",tipo:"tudo"};
 let cfgDraft=null, cfgDirty=false;
 let editing=null, editTipo="campanha", delArm=false, pickColor=COLORS[0];
-let addxOpen=null, detail=null, detMenu=null, etEdit=null;
+let addxOpen=null, detail=null, detMenu=null, etEdit=null, gSel=null, kpiOpen=null;
 
 try{const s=JSON.parse(localStorage.getItem(UIKEY)||"{}"); if(s.filt) filt=Object.assign(filt,s.filt); if(s.view) view=s.view; if(ZW[s.zoom]) zoom=s.zoom; if(s.showObs===false) showObs=false;}catch(e){}
 function saveUI(){try{localStorage.setItem(UIKEY,JSON.stringify({filt,view,zoom,showObs}))}catch(e){}}
@@ -424,10 +443,14 @@ function renderSummary(tasks){
   if(focus){const ft=tasks.filter(x=>x.camp.id===focus.id&&x.state!=="na");const dn=ft.filter(x=>x.state==="feito").length;const pct=ft.length?Math.round(dn/ft.length*100):0;
     prog=`<div class="lbl">Preparação · ${esc(focus.name)}</div><div class="big num">${pct}%</div><div class="sub num">${dn} de ${ft.length} tarefas feitas</div><div class="bar"><span style="width:${pct}%"></span></div>`}
   else prog=`<div class="lbl">Preparação</div><div class="big">—</div><div class="sub">Cadastre uma promoção ou coleção</div>`;
+  const kList=kpiOpen==="late"?late.slice().sort((a,b)=>a.due-b.due):kpiOpen==="week"?week.slice().sort((a,b)=>a.due-b.due):null;
+  const kItem=k=>{const st=tstat(k);return `<div class="ki" data-detail="${k.camp.id}" data-gsel="${k.sid}" role="button" tabindex="0" title="Abrir para editar"><div><b>${esc(k.name)}</b><small>${esc(k.camp.name)} · ${esc(namesOf(k.owners))} · prazo ${k.due.toLocaleDateString("pt-BR",{weekday:"short",day:"2-digit",month:"2-digit"})}</small></div><span class="pill ${st.cls}">${st.label}</span></div>`};
+  const kBox=kList?`<div class="kpi-list" id="kpi-list"><div class="kh">${kpiOpen==="late"?"Tarefas atrasadas":"Tarefas que vencem em 7 dias"}<span class="small muted" style="font-weight:600">· clique numa tarefa para abrir e editar</span><button class="iconbtn" data-kpi="${kpiOpen}" type="button" aria-label="Fechar" style="margin-left:auto">×</button></div>${kList.map(kItem).join("")||`<div class="ok-empty" style="color:var(--muted);padding:12px 16px">Nenhuma tarefa.</div>`}</div>`:"";
   $("#summary").innerHTML=`<div class="tile">${t1}</div>
-   <div class="tile late"><div class="lbl">Atrasadas</div><div class="big num">${late.length}</div><div class="sub">${late.length?esc(lateP.join(", ")):"Tudo em dia"}</div></div>
-   <div class="tile soon"><div class="lbl">Vencem em 7 dias</div><div class="big num">${week.length}</div><div class="sub">${week.length?"até "+br(addDays(t,7)):"Nada para esta semana"}</div></div>
-   <div class="tile">${prog}</div>`;
+   <div class="tile">${prog}</div>
+   <button type="button" class="tile late" data-kpi="late" aria-expanded="${kpiOpen==="late"}"><div class="lbl">Atrasadas</div><div class="big num">${late.length}</div><div class="sub">${late.length?esc(lateP.join(", ")):"Tudo em dia"}</div>${late.length?`<div class="more">${kpiOpen==="late"?"Esconder lista":"Ver quais são"}</div>`:""}</button>
+   <button type="button" class="tile soon" data-kpi="week" aria-expanded="${kpiOpen==="week"}"><div class="lbl">Vencem em 7 dias</div><div class="big num">${week.length}</div><div class="sub">${week.length?"até "+br(addDays(t,7)):"Nada para esta semana"}</div>${week.length?`<div class="more">${kpiOpen==="week"?"Esconder lista":"Ver quais são"}</div>`:""}</button>
+   ${kBox}`;
 }
 
 function renderCal(tasks){
@@ -453,11 +476,11 @@ function renderCal(tasks){
     const cl=Math.max(0,x(s)),cr=Math.min(W,x(addDays(e,1)));
     const pl=Math.max(0,x(first)),pr=Math.min(W,x(s));
     const prep=pr>pl?`<div class="prep" style="left:${pl}px;width:${pr-pl}px;background:repeating-linear-gradient(135deg,${col}33 0 6px,${col}14 6px 12px)"></div>`:"";
-    const bar=cr>cl?`<div class="camp" data-edit="${c.id}" style="left:${cl}px;width:${cr-cl}px;background:${col};color:${inkOn(col)}" title="${esc(c.name)}: ${br(s)} a ${br(e)}${c.mecanica?" — "+esc(c.mecanica):""}${c.notas?" — "+esc(c.notas):""}">${esc(c.name)}</div>`:"";
+    const bar=cr>cl?`<div class="camp" data-detail="${c.id}" style="left:${cl}px;width:${cr-cl}px;background:${col};color:${inkOn(col)}" title="${esc(c.name)}: ${br(s)} a ${br(e)}${c.mecanica?" — "+esc(c.mecanica):""}${c.notas?" — "+esc(c.notas):""}">${esc(c.name)}</div>`:"";
     let dots="";
-    for(const k of ct){const px=x(k.due)+DW/2;if(px<0||px>W)continue;const st=tstat(k);dots+=`<span class="dot ${st.cls}" data-goto="${c.id}" style="left:${px}px" title="${esc(k.name)} — ${esc(namesOf(k.owners))} — ${brFull(k.due)} (${st.label})"></span>`}
+    for(const k of ct){const px=x(k.due)+DW/2;if(px<0||px>W)continue;const st=tstat(k);dots+=`<span class="dot ${st.cls}" data-detail="${c.id}" data-gsel="${k.sid}" style="left:${px}px" title="${esc(k.name)} — ${esc(namesOf(k.owners))} — ${brFull(k.due)} (${st.label})"></span>`}
     const openN=ct.filter(isOpen).length, lateN=ct.filter(k=>isLate(k)).length;
-    rows+=`<div class="tl-row"><div class="tl-lab"><b data-edit="${c.id}">${esc(c.name)}</b><span>${br(s)} → ${br(e)}${(()=>{const r=colRisk(c,tasks);return r?` · <span style="color:var(--late);font-weight:800" title="${esc(shortName(r.k.name))} ${esc(r.why)}">início previsto ${br(r.proj)} (+${r.delay}d)</span>`:""})()}${lateN?` · <span style="color:var(--late);font-weight:800">${lateN} atrasada${lateN>1?"s":""}</span>`:openN?` · ${openN} abertas`:" · pronta"}</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div>${prep}${bar}${dots}</div></div>`;
+    rows+=`<div class="tl-row"><div class="tl-lab"><b data-detail="${c.id}" class="clickable">${esc(c.name)}</b><span>${br(s)} → ${br(e)}${(()=>{const r=colRisk(c,tasks);return r?` · <span style="color:var(--late);font-weight:800" title="${esc(shortName(r.k.name))} ${esc(r.why)}">início previsto ${br(r.proj)} (+${r.delay}d)</span>`:""})()}${lateN?` · <span style="color:var(--late);font-weight:800">${lateN} atrasada${lateN>1?"s":""}</span>`:openN?` · ${openN} abertas`:" · pronta"}</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div>${prep}${bar}${dots}</div></div>`;
   }
   const tx=diff(t,start);const todayLine=(tx>=0&&tx<n)?`<div class="today-line" style="left:${170+tx*DW+DW/2-1}px"></div>`:"";
   const body=vis.length?rows:`<div class="tl-row"><div class="tl-lab"><span>Nada neste período</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div></div></div>`;
@@ -491,7 +514,7 @@ function colRow(c,tasks,x,W,bgCells,t){
   for(const it of ct){let li=lanes.findIndex(le=>le<=it.s);if(li<0){li=lanes.length;lanes.push(it.e)}else lanes[li]=it.e;
     const idx=colTemplates.findIndex(z=>z.key===it.k.tpl.key);const pc=it.k.tpl.src==="x"?"#5F6582":COLPH[(idx<0?0:idx)%COLPH.length];
     const l=Math.max(0,x(it.s)),r=Math.min(W,Math.max(x(it.e),x(it.s)+DW));if(r<=l)continue;const st=tstat(it.k);
-    segs+=`<div class="cph ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" data-detail="${c.id}" style="left:${l}px;width:${r-l}px;top:${8+li*17}px;background:${pc}" title="${esc(it.k.name)} — ${esc(namesOf(it.k.owners))} — ${br(it.s)} a ${br(it.e)} (${st.label})">${esc(shortName(it.k.name))}</div>`}
+    segs+=`<div class="cph ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" data-detail="${c.id}" data-gsel="${it.k.sid}" style="left:${l}px;width:${r-l}px;top:${8+li*17}px;background:${pc}" title="${esc(it.k.name)} — ${esc(namesOf(it.k.owners))} — ${br(it.s)} a ${br(it.e)} (${st.label})">${esc(shortName(it.k.name))}</div>`}
   const h=Math.max(52,8+lanes.length*17+8);
   const lx=x(L)+DW/2;const mk=(lx>=0&&lx<=W)?`<span class="launch clickable" data-detail="${c.id}" style="left:${lx}px;top:${h/2-7}px;background:${col}" title="Lançamento ${esc(c.name)}: ${br(L)}"></span><span class="launch-l" style="left:${lx+12}px;top:${h/2-8}px">${esc(c.name)}</span>`:"";
   const lateN=ct.filter(z=>isLate(z.k)).length,openN=ct.filter(z=>isOpen(z.k)).length;
@@ -528,38 +551,49 @@ function editForm(k,z){
   return `<form class="addet" data-etsave="${k.sid}" style="border-radius:0;border-bottom:1px solid var(--line)"><label style="flex:1 1 240px">${col?"Nome da etapa":"Nome da tarefa"}<input type="text" id="ee-name" value="${esc(k.name)}" required></label>${col?`<label>Início<input type="date" id="ee-start" value="${iso(z.s)}"></label><label>Duração (dias)<input type="number" min="1" id="ee-dur" value="${diff(z.e,z.s)||k.dur||1}" style="width:90px"></label>`:""}<label>${col?"Entrega":"Prazo"}<input type="date" id="ee-due" value="${iso(z.e)}"></label><label>Responsáveis<span>${team.map(p=>`<label class="ochk" style="flex-direction:row;font-weight:600;color:var(--ink)"><input type="checkbox" id="ee-o-${p.id}" data-eeo="${p.id}" ${k.owners.includes(p.id)?"checked":""}>${esc(p.name)}</label>`).join("")}</span></label><label style="flex:1 1 100%">Observação<textarea id="ee-obs" rows="2" style="border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;font:inherit;font-size:14px;color:var(--ink);resize:vertical" placeholder="Ex.: fornecedor atrasou o tecido; usar fotos da coleção anterior…">${esc(k.obs)}</textarea></label><div style="display:flex;gap:8px"><button class="btn ghost" type="button" data-etcancel>Cancelar</button><button class="btn primary" type="submit">Salvar</button></div></form>`;
 }
 function renderDetail(c,allT){
-  const t=today(),L=parseD(c.start),col=c.color||COLORS[0],dis=canWrite?"":"disabled";
+  const t=today(),L=parseD(c.start),E=parseD(c.end)||L,col=c.color||COLORS[0],dis=canWrite?"":"disabled";
+  const isC=isCol(c),TL=isC?"Coleção":"Promoção",tl=isC?"coleção":"promoção",EL=isC?"Etapa":"Tarefa",el=isC?"etapa":"tarefa";
   const ct=allT.filter(k=>k.camp.id===c.id).map(k=>({k,s:k.start||addDays(k.due,-1),e:k.due})).sort((a,b)=>a.s-b.s||a.e-b.e);
-  const min=addDays(ct.reduce((a,z)=>z.s<a?z.s:a,L),-4),max=addDays(ct.reduce((a,z)=>z.e>a?z.e:a,L),6);
+  const min=addDays(ct.reduce((a,z)=>z.s<a?z.s:a,L),-4),max=addDays(ct.reduce((a,z)=>z.e>a?z.e:a,E),6);
   const n=diff(max,min)+1;
   const avail=Math.max(560,(document.querySelector(".wrap")?.clientWidth||1100)-250-40);
   const DW=Math.max(8,Math.floor(avail/n)),W=n*DW,x=d=>diff(d,min)*DW;
   let head="";
   for(let i=0;i<n;i++){const d=addDays(min,i);if(i===0||d.getDate()===1)head+=`<span class="dt-hm" style="left:${i*DW}px">${d.toLocaleDateString("pt-BR",{month:"short",year:"2-digit"}).replace(".","")}</span>`;if(d.getDay()===1&&DW*7>=22)head+=`<span class="dt-hw" style="left:${i*DW}px">${d.getDate()}</span>`}
-  const idxCol=k=>{const i=colTemplates.findIndex(z=>z.key===k.tpl.key);return k.tpl.src==="x"?"#5F6582":COLPH[(i<0?0:i)%COLPH.length]};
-  const rows=ct.map(z=>{const k=z.k,st=tstat(k),l=x(z.s),w=Math.max(DW,x(z.e)-l);return `<div class="dt-row"><div class="dt-lab"><b>${esc(shortName(k.name))}</b><span>${esc(namesOf(k.owners))} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias</span><span><span class="pill ${st.cls}">${st.label}</span></span></div><div class="dt-track" style="width:${W}px"><div class="dt-bar ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" style="left:${l}px;width:${w}px;background:${idxCol(k)}" title="${esc(k.name)}">${esc(shortName(k.name))}</div></div></div>`}).join("");
+  const idxCol=k=>{const i=(isC?colTemplates:templates).findIndex(z=>z.key===k.tpl.key);return k.tpl.src==="x"?"#5F6582":COLPH[(i<0?0:i)%COLPH.length]};
+  const gPanel=(k,z)=>{const st=tstat(k),on=k.state==="feito",canCk=(canWrite||(TEAM&&!on))&&k.state!=="na";
+    const acts=[canCk?`<button class="btn sm ${on?"":"primary"}" data-done="${k.sid}" type="button">${on?"Desmarcar feita":"Marcar como feita"}</button>`:""];
+    if(canWrite){
+      if(k.state==="pendente")acts.push(`<button class="btn sm" data-startnow="${k.sid}" type="button">Marcar como iniciada hoje</button>`);
+      if(k.state==="andamento")acts.push(`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button class="btn sm" data-unstart="${k.sid}" type="button">Voltar para não iniciada</button>`);
+      acts.push(`<button class="btn sm" data-na="${k.sid}" type="button">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>`);
+      if(k.custom)acts.push(`<button class="btn sm" data-xreset="${k.sid}" type="button">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`);
+      if(k.tpl.src==="x")acts.push(`<button class="btn sm" data-delx="${k.sid}" type="button" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`);
+    }
+    return `<div class="dt-panel" id="gpanel" style="width:${Math.min(250+W,avail+250)}px"><div class="gp-h"><b style="font-size:15px">${esc(k.name)}</b><span class="pill ${st.cls}">${st.label}</span><span class="small muted">${esc(PHASES[k.phase]||"")} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias${k.critica?" · não pode acelerar":""}${k.custom?" · ajustada nesta "+tl:""}${on&&k.doneAt?" · feita em "+brFull(new Date(k.doneAt)):""}</span><button class="iconbtn" data-gclose type="button" aria-label="Fechar" style="margin-left:auto">×</button></div><div class="gp-a">${acts.join("")}</div>${canWrite?editForm(k,z):""}</div>`};
+  const rows=ct.map(z=>{const k=z.k,st=tstat(k),l=x(z.s),w=Math.max(DW,x(z.e)-l);const sel=gSel===k.sid;return `<div class="dt-row ${sel?"sel":""}"><div class="dt-lab" data-gsel="${k.sid}" role="button" tabindex="0" title="Clique para editar"><b>${esc(shortName(k.name))}</b><span>${esc(namesOf(k.owners))} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias</span><span><span class="pill ${st.cls}">${st.label}</span></span></div><div class="dt-track" style="width:${W}px"><div class="dt-bar ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" style="left:${l}px;width:${w}px;background:${idxCol(k)}" data-gsel="${k.sid}" title="${esc(k.name)} — clique para editar">${esc(shortName(k.name))}</div></div></div>${sel?gPanel(k,z):""}`}).join("");
   const lx=x(L)+DW/2, tx=diff(t,min);
-  const lines=`<div class="dt-vline" style="left:${250+lx-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+lx}px;top:44px;background:${col}">Lançamento ${br(L)}</span>${tx>=0&&tx<n?`<div class="dt-vline" style="left:${250+tx*DW+DW/2-1}px;background:var(--today)"></div>`:""}`;
+  const lines=`<div class="dt-vline" style="left:${250+lx-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+lx}px;top:44px;background:${col}">${isC?"Lançamento":"Início"} ${br(L)}</span>${!isC&&diff(E,L)>0?`<div class="dt-vline" style="left:${250+x(E)+DW/2-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+x(E)+DW/2}px;top:44px;background:${col}">Fim ${br(E)}</span>`:""}${tx>=0&&tx<n?`<div class="dt-vline" style="left:${250+tx*DW+DW/2-1}px;background:var(--today)"></div>`:""}`;
   const done=ct.filter(z=>z.k.state==="feito").length,tot=ct.filter(z=>z.k.state!=="na").length;
   const risk=colRisk(c,allT);
-  const riskBox=risk?`<div class="note" style="background:var(--late-bg);color:var(--ink);margin:0 16px 14px"><b style="color:var(--late)">⚠️ Lançamento em risco.</b> ${esc(shortName(risk.k.name))} ${esc(risk.why)}. Como essa etapa não tem como acelerar (${risk.k.dur} dias), a previsão de lançamento passa de <b>${brFull(L)}</b> para <b>${brFull(risk.proj)}</b> (+${risk.delay} dias). Se quiser manter a data, dá para mudar o lançamento em “Editar coleção” ou reduzir o escopo.</div>`:"";
-  const etRows=ct.map(z=>{const k=z.k,on=k.state==="feito";const mo=detMenu===k.sid?`<div class="menu-pop">${canWrite?`<button type="button" data-etedit="${k.sid}">Editar etapa</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica nesta coleção"}</button>${k.custom?`<button type="button" data-xreset="${k.sid}">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir etapa desta coleção</button>`:""}</div>`:"";
-    return `<div class="et ${on?"is-done":""} ${k.state==="na"?"is-na":""}"><button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button><div class="nm"><b>${esc(k.name)}</b><small>${(()=>{const st=tstat(k);return `<span class="pill ${st.cls}">${st.label}</span>`})()} ${k.state==="andamento"?`iniciada em ${brFull(dayOf(k.startedAt)||today())}`:k.state==="pendente"&&canWrite?`<button type="button" class="btn sm" data-startnow="${k.sid}" style="padding:2px 8px;font-size:12px">Iniciar</button>`:""}${k.critica?" · não pode acelerar":""}${[k.custom?" · ajustada nesta coleção":"",k.tpl.src==="x"?" · etapa extra":""].join("")}</small>${obsLine(k.obs,"obs",k.sid)}</div><input type="date" id="xs-${k.sid}" data-xstart="${k.sid}" value="${iso(z.s)}" aria-label="Início" ${dis}><input type="number" min="1" id="xu-${k.sid}" data-xdur="${k.sid}" value="${k.dur||1}" aria-label="Duração em dias" ${dis}><input type="date" id="xe-${k.sid}" data-xdue="${k.sid}" value="${iso(z.e)}" aria-label="Entrega" ${dis}>${ownerSel(k)}<div class="menu">${canWrite?`<button class="iconbtn" data-detmenu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${mo}</div></div>${etEdit===k.sid?editForm(k,z):""}`}).join("");
-  const addF=canWrite?`<form class="addet" data-addet="${c.id}"><label style="flex:1 1 220px">Nova etapa nesta coleção<input type="text" id="ae-name" required placeholder="Ex.: Aprovação de peça-piloto"></label><label>Início<input type="date" id="ae-start" value="${iso(addDays(L,-20))}"></label><label>Entrega<input type="date" id="ae-due" value="${iso(addDays(L,-10))}"></label><label>Responsáveis<span>${team.map(p=>`<label class="ochk" style="flex-direction:row;font-weight:600;color:var(--ink)"><input type="checkbox" id="ae-o-${p.id}" data-aeo="${p.id}">${esc(p.name)}</label>`).join("")}</span></label><button class="btn primary" type="submit">Adicionar etapa</button></form>`:"";
+  const riskBox=risk?`<div class="note" style="background:var(--late-bg);color:var(--ink);margin:0 16px 14px"><b style="color:var(--late)">⚠️ ${isC?"Lançamento":"Início da promoção"} em risco.</b> ${esc(shortName(risk.k.name))} ${esc(risk.why)}. Como essa etapa não tem como acelerar (${risk.k.dur} dias), a previsão ${isC?"de lançamento":"de início"} passa de <b>${brFull(L)}</b> para <b>${brFull(risk.proj)}</b> (+${risk.delay} dias). Se quiser manter a data, dá para mudar em “Editar ${tl}” ou reduzir o escopo.</div>`:"";
+  const etRows=ct.map(z=>{const k=z.k,on=k.state==="feito";const mo=detMenu===k.sid?`<div class="menu-pop">${canWrite?`<button type="button" data-etedit="${k.sid}">Editar ${el}</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>${k.custom?`<button type="button" data-xreset="${k.sid}">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:""}</div>`:"";
+    return `<div class="et ${on?"is-done":""} ${k.state==="na"?"is-na":""}"><button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button><div class="nm"><b>${esc(k.name)}</b><small>${(()=>{const st=tstat(k);return `<span class="pill ${st.cls}">${st.label}</span>`})()} ${k.state==="andamento"?`iniciada em ${brFull(dayOf(k.startedAt)||today())}`:k.state==="pendente"&&canWrite?`<button type="button" class="btn sm" data-startnow="${k.sid}" style="padding:2px 8px;font-size:12px">Iniciar</button>`:""}${k.critica?" · não pode acelerar":""}${[k.custom?" · ajustada nesta "+tl:"",k.tpl.src==="x"?" · "+el+" extra":""].join("")}</small>${obsLine(k.obs,"obs",k.sid)}</div><input type="date" id="xs-${k.sid}" data-xstart="${k.sid}" value="${iso(z.s)}" aria-label="Início" ${dis}><input type="number" min="1" id="xu-${k.sid}" data-xdur="${k.sid}" value="${k.dur||1}" aria-label="Duração em dias" ${dis}><input type="date" id="xe-${k.sid}" data-xdue="${k.sid}" value="${iso(z.e)}" aria-label="Entrega" ${dis}>${ownerSel(k)}<div class="menu">${canWrite?`<button class="iconbtn" data-detmenu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${mo}</div></div>${etEdit===k.sid&&gSel!==k.sid?editForm(k,z):""}`}).join("");
+  const addF=canWrite?`<form class="addet" data-addet="${c.id}"><label style="flex:1 1 220px">Nova ${el} nesta ${tl}<input type="text" id="ae-name" required placeholder="${isC?"Ex.: Aprovação de peça-piloto":"Ex.: Gravar vídeo com influenciadora"}"></label><label>Início<input type="date" id="ae-start" value="${iso(addDays(L,-20))}"></label><label>Entrega<input type="date" id="ae-due" value="${iso(addDays(L,-10))}"></label><label>Responsáveis<span>${team.map(p=>`<label class="ochk" style="flex-direction:row;font-weight:600;color:var(--ink)"><input type="checkbox" id="ae-o-${p.id}" data-aeo="${p.id}">${esc(p.name)}</label>`).join("")}</span></label><button class="btn primary" type="submit">Adicionar ${el}</button></form>`:"";
   $("#v-calendario").innerHTML=`
    <div class="card">
-    <div class="card-h"><div style="display:flex;flex-direction:column;gap:2px"><button class="btn sm ghost" data-back type="button" style="align-self:flex-start">← Voltar ao calendário</button><span class="ctype" style="margin-top:6px">Coleção</span><h2>${esc(c.name)}</h2><span class="small muted">Lançamento ${L.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})} · ${done} de ${tot} etapas feitas${c.mecanica?" · "+esc(c.mecanica):""}</span>${c.notas?obsLine(c.notas,"obs-c","c:"+c.id):""}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${obsBtn()}${canWrite?`<button class="btn sm" data-edit="${c.id}" type="button">Editar coleção</button>`:""}</div></div>
+    <div class="card-h"><div style="display:flex;flex-direction:column;gap:2px"><button class="btn sm ghost" data-back type="button" style="align-self:flex-start">← Voltar ao calendário</button><span class="ctype" style="margin-top:6px">${TL}</span><h2>${esc(c.name)}</h2><span class="small muted">${isC?"Lançamento "+L.toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"}):br(L)+" → "+br(E)+" · "+campPhase(c)} · ${done} de ${tot} ${el}s feitas${c.mecanica?" · "+esc(c.mecanica):""}</span>${c.notas?obsLine(c.notas,"obs-c","c:"+c.id):""}</div><div style="display:flex;gap:8px;flex-wrap:wrap">${obsBtn()}${canWrite?`<button class="btn sm" data-edit="${c.id}" type="button">Editar ${tl}</button>`:""}</div></div>
     ${riskBox}
     <div class="dt-wrap"><div class="dt" style="width:${250+W}px">
-      <div class="dt-row" style="border-bottom:1px solid var(--line)"><div class="dt-lab" style="min-height:40px"><span>Etapa</span></div><div style="position:relative;width:${W}px;height:40px">${head}</div></div>
+      <div class="dt-row" style="border-bottom:1px solid var(--line)"><div class="dt-lab" style="min-height:40px"><span>${EL}</span></div><div style="position:relative;width:${W}px;height:40px">${head}</div></div>
       <div style="height:22px;border-bottom:1px solid var(--line)"></div>
       ${rows||`<div class="ok-empty" style="color:var(--muted)">Nenhuma etapa.</div>`}
       ${lines}
     </div></div>
    </div>
    <div class="card">
-    <div class="card-h"><div><h2>Etapas desta coleção</h2><div class="small muted">Mudar datas ou duração aqui vale só para esta coleção. Para mudar o padrão de todas, use a aba “Equipe e modelo de tarefas”.</div></div></div>
-    <div style="overflow-x:auto"><div class="et hd"><span></span><span>Etapa</span><span>Início</span><span>Dias</span><span>Entrega</span><span>Responsável</span><span></span></div>${etRows}</div>
+    <div class="card-h"><div><h2>${EL}s desta ${tl}</h2><div class="small muted">Mudar datas ou duração aqui vale só para esta ${tl}. Para mudar o padrão de todas, use a aba “Equipe e modelo de tarefas”.</div></div></div>
+    <div style="overflow-x:auto"><div class="et hd"><span></span><span>${EL}</span><span>Início</span><span>Dias</span><span>Entrega</span><span>Responsável</span><span></span></div>${etRows}</div>
     ${addF}
    </div>`;
 }
@@ -744,7 +778,7 @@ async function deleteCamp(){
 document.addEventListener("click",async e=>{
   if(e.target.closest(".menu-pop")&&!e.target.closest("button"))return;
   if(e.target.closest("input,select,textarea,label"))return;
-  const el=e.target.closest("button,[data-edit],[data-goto],[data-detail],a");
+  const el=e.target.closest("button,[data-edit],[data-goto],[data-detail],[data-gsel],a");
   if(!el){if(openMenu||detMenu){openMenu=null;detMenu=null;render()}return}
   const hadMenu=openMenu;
   const d=el.dataset;
@@ -756,15 +790,18 @@ document.addEventListener("click",async e=>{
   if(el.id==="undo"){undo();return}
   if(el.id==="redo"){redo();return}
   if(d.tipo){filt.tipo=d.tipo;filt.camp="all";saveUI();render();return}
-  if(d.detail){detail=d.detail;detMenu=null;view="calendario";render();window.scrollTo({top:0});return}
-  if("back" in d){detail=null;detMenu=null;render();return}
+  if(d.detail){if(el.closest(".kpi-list"))kpiOpen=null;detail=d.detail;detMenu=null;view="calendario";gSel=d.gsel||null;etEdit=gSel&&canWrite?gSel:null;render();if(gSel)focusPanel();else window.scrollTo({top:0});return}
+  if(d.kpi){kpiOpen=kpiOpen===d.kpi?null:d.kpi;render();return}
+  if(d.gsel){gSel=gSel===d.gsel?null:d.gsel;etEdit=gSel&&canWrite?gSel:null;detMenu=null;render();if(gSel)focusPanel();return}
+  if("gclose" in d){gSel=null;etEdit=null;render();return}
+  if("back" in d){detail=null;detMenu=null;gSel=null;etEdit=null;render();return}
   if("toggleobs" in d){showObs=!showObs;obsFlip.clear();saveUI();render();return}
   if(d.obs){obsFlip.has(d.obs)?obsFlip.delete(d.obs):obsFlip.add(d.obs);render();return}
   if(d.startnow){setStatus(d.startnow,{state:"andamento",startedAt:iso(today())}).then(ok=>ok&&toast("Etapa iniciada"));return}
   if(d.unstart){detMenu=null;setStatus(d.unstart,{state:"pendente",startedAt:null});return}
   if(d.detmenu){detMenu=detMenu===d.detmenu?null:d.detmenu;render();return}
-  if(d.etedit){etEdit=d.etedit;detMenu=null;openMenu=null;render();setTimeout(()=>$("#ee-name")?.focus(),20);return}
-  if("etcancel" in d){etEdit=null;render();return}
+  if(d.etedit){etEdit=d.etedit;gSel=null;detMenu=null;openMenu=null;render();setTimeout(()=>$("#ee-name")?.focus(),20);return}
+  if("etcancel" in d){etEdit=null;gSel=null;render();return}
   if(d.xreset){detMenu=null;setStatus(d.xreset,{due:null,dur:null,name:null,owners:null,owner:null});return}
   if(d.dueReset){openMenu=null;setStatus(d.dueReset,{due:null,name:null,owners:null,owner:null});return}
   if(d.edit){if(canWrite)openModal(d.edit);return}
@@ -778,7 +815,7 @@ document.addEventListener("click",async e=>{
   if(d.menu){openMenu=openMenu===d.menu?null:d.menu;render();return}
   if(d.na){const k=allTasks().find(x=>x.sid===d.na);openMenu=null;detMenu=null;setStatus(d.na,{state:k.state==="na"?"pendente":"na"});return}
   if(d.dueReset){openMenu=null;setStatus(d.dueReset,{due:null});return}
-  if(d.delx){const [cid,key]=d.delx.split("__");const c=campaigns.find(x=>x.id===cid);openMenu=null;detMenu=null;const extras=(c.extras||[]).filter(t=>t.key!==key);saveExtras(cid,extras,"Excluída","excluir tarefa extra");return}
+  if(d.delx){gSel=null;etEdit=null;const [cid,key]=d.delx.split("__");const c=campaigns.find(x=>x.id===cid);openMenu=null;detMenu=null;const extras=(c.extras||[]).filter(t=>t.key!==key);saveExtras(cid,extras,"Excluída","excluir tarefa extra");return}
   if(d.addxOpen){addxOpen=d.addxOpen;render();setTimeout(()=>$("#ax-name-"+addxOpen)?.focus(),20);return}
   if("addxClose" in d){addxOpen=null;render();return}
   if(d.copy){const p=person(d.copy);const k=allTasks().filter(x=>x.owners.includes(p.id)&&isOpen(x)&&diff(x.due,today())<=3).sort((a,b)=>a.due-b.due);const msg=cobMsg(p,k);
@@ -836,6 +873,7 @@ document.addEventListener("change",e=>{
   if(d.cp!==undefined){cfgDraft.people[Number(d.cp)][d.k]=el.value;markDirty();return}
   if(d.ct!==undefined){const t=cfgDraft.tasks[Number(d.ct)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","anchor","weekday","dep"].includes(d.k))renderCfg();return}
 });
+function focusPanel(){setTimeout(()=>{const p=$("#gpanel");if(p){p.scrollIntoView({block:"nearest",behavior:"smooth"})}},30)}
 function keepDraft(){try{if(cfgDirty&&cfgDraft)localStorage.setItem("pmm-cfg-draft",JSON.stringify(cfgDraft));else localStorage.removeItem("pmm-cfg-draft")}catch(e){}}
 function markDirty(){cfgDirty=true;keepDraft();const sb=$("#cfg-savebar");if(sb)sb.innerHTML=saveBarHtml()}
 function saveBarHtml(){return `${cfgDirty?`<span class="small" style="color:var(--soon);font-weight:700">Alterações não salvas</span><button class="btn ghost" id="cfg-reset" type="button">Descartar</button>`:""}<button class="btn primary" id="cfg-save" type="button" ${cfgDirty?"":"disabled"}>Salvar equipe e modelos</button>`}
@@ -858,7 +896,7 @@ document.addEventListener("submit",e=>{
     const owners=[...document.querySelectorAll("[data-eeo]:checked")].map(i=>i.dataset.eeo);
     if(!owners.length){toast("Escolha pelo menos um responsável");return}
     const obs=($("#ee-obs")?.value||"").trim();
-    etEdit=null;
+    etEdit=null;gSel=null;
     if(k.tpl.src==="x"){const [cid,key]=sid.split("__");const c=campaigns.find(x=>x.id===cid);
       const anc=k.tpl.anchor==="fim"?parseD(c.end):parseD(c.start);
       const extras=(c.extras||[]).map(x=>x.key===key?Object.assign({},x,{name,days:diff(anc,e0),dur,owners,owner:owners[0],obs}):x);
@@ -869,13 +907,13 @@ document.addEventListener("submit",e=>{
     if(!name||!s0||!e0){toast("Preencha nome, início e entrega");return}
     const dur=diff(e0,s0);if(dur<1){toast("A entrega precisa ser depois do início");return}
     const owners=[...document.querySelectorAll("[data-aeo]:checked")].map(i=>i.dataset.aeo);
-    const extras=(c.extras||[]).concat([{key:"x"+rid(),name,days:diff(parseD(c.start),e0),dur,anchor:"lanc",owners,owner:owners[0]||"",phase:"colecao"}]);
+    const extras=(c.extras||[]).concat([{key:"x"+rid(),name,days:diff(parseD(c.start),e0),dur,anchor:isCol(c)?"lanc":"inicio",owners,owner:owners[0]||"",phase:isCol(c)?"colecao":"execucao"}]);
     saveExtras(cid,extras,"Etapa adicionada","adicionar etapa “"+shortName(name)+"”");return}
   if(f.dataset.addx){const cid=f.dataset.addx;const name=$("#ax-name-"+cid).value.trim();if(!name)return;
     const c=campaigns.find(x=>x.id===cid);const extras=(c.extras||[]).concat([{key:"x"+rid(),name,days:Number($("#ax-days-"+cid).value||0),anchor:isCol(c)?"lanc":"inicio",owner:$("#ax-owner-"+cid).value,phase:isCol(c)?"colecao":"execucao"}]);
     addxOpen=null;saveExtras(cid,extras,"Tarefa adicionada","adicionar tarefa “"+shortName(name)+"”");}
 });
-document.addEventListener("keydown",e=>{const inField=e.target.closest&&e.target.closest("input,textarea,select");
+document.addEventListener("keydown",e=>{const inField=e.target.closest&&e.target.closest("input,textarea,select");if((e.key==="Enter"||e.key===" ")&&e.target.dataset&&e.target.dataset.gsel&&!inField){e.preventDefault();e.target.click();return}
   if((e.ctrlKey||e.metaKey)&&!inField&&(e.key==="z"||e.key==="Z"||e.key==="y")){e.preventDefault();if(e.key==="y"||e.shiftKey)redo();else undo();return}
   if(e.key==="Escape"){if(!$("#overlay").hidden)closeModal();else if(openMenu){openMenu=null;render()}}});
 $("#overlay").addEventListener("click",e=>{if(e.target.id==="overlay")closeModal()});
