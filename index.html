@@ -224,7 +224,9 @@ button.tile[aria-expanded=true]{box-shadow:inset 0 0 0 2px var(--ink)}
 .dt-hw{position:absolute;top:22px;font-size:10px;color:var(--muted);padding-left:3px;border-left:1px solid var(--line);height:18px}
 .dt-vline{position:absolute;top:0;bottom:0;width:2px;z-index:2;pointer-events:none}
 .dt-vlab{position:absolute;top:2px;font-size:11px;font-weight:800;padding:1px 6px;border-radius:5px;color:#fff;white-space:nowrap;z-index:4;transform:translateX(-50%)}
-.et{display:grid;grid-template-columns:28px minmax(180px,1fr) 150px 90px 150px 170px 34px;gap:10px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);min-width:900px}
+.et{display:grid;grid-template-columns:28px 30px minmax(200px,1fr) 70px 150px 140px 70px 140px 160px 34px;gap:8px;align-items:center;padding:8px 16px;border-bottom:1px solid var(--line);min-width:1180px}
+.et .eno{font-weight:800;color:var(--muted);text-align:right}
+.et select.sel{min-width:0;width:100%;padding:6px 8px;font-size:13px}
 .et.hd{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
 .et input[type=date],.et input[type=number],.et input[type=text]{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px;font-size:13px;width:100%}
 .et .nm small{display:block;color:var(--muted);font-size:12px}
@@ -364,6 +366,8 @@ const KL=c=>isSpot(c)?"Spot":isCol(c)?"Coleção":"Promoção";
 const kl=c=>isSpot(c)?"spot":isCol(c)?"coleção":"promoção";
 const spotTpl=()=>(spotTemplates&&spotTemplates.length)?spotTemplates:colTemplates;
 const tplsOf=c=>isSpot(c)?spotTpl():isCol(c)?colTemplates:templates;
+const campTpls=c=>Array.isArray(c.tasks)?c.tasks:tplsOf(c);
+const MK=el=>{const m=el&&el.closest&&el.closest("[data-model]");return m?m.dataset.model:"col"};
 const tipoOk=c=>filt.tipo==="tudo"||filt.tipo===kindOf(c);
 function namesOf(ids){const n=ids.map(pname);return n.length>1?n.slice(0,-1).join(", ")+" e "+n[n.length-1]:(n[0]||"Sem responsável")}
 function defOwners(t){return (t.owners&&t.owners.length)?t.owners:(t.owner?[t.owner]:[])}
@@ -371,20 +375,21 @@ function tipoSeg(){return `<div class="seg-t" role="group" aria-label="Mostrar">
 const DIAS=["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 function wdOf(t){if(t.weekday!==undefined&&t.weekday!==null&&t.weekday!=="")return Number(t.weekday);return t.snap?1:null}
 function isAfter(t){return t.anchor==="fim"&&Number(t.days)<0}
-function dlabel(t){const b=dlabel0(t),wd=wdOf(t);if(wd==null)return b;return isAfter(t)?`1ª ${DIAS[wd]} após `+(Number(t.days)===-1?"o fim":b):`${DIAS[wd]} até ${b}`}
+function dlabel(t){if(isAuto(t))return "automática";if(isApos(t))return "logo após a etapa de que depende";const b=dlabel0(t),wd=wdOf(t);if(wd==null)return b;return isAfter(t)?`1ª ${DIAS[wd]} após `+(Number(t.days)===-1?"o fim":b):`${DIAS[wd]} até ${b}`}
 function dlabel0(t){if(t.anchor==="lanc"){const d=Number(t.days||0);return d>0?`${d} dias antes do lançamento`:(d===0?"no lançamento":`${-d} dias após o lançamento`)}const d=Number(t.days||0);if(t.anchor==="fim")return d===0?"no último dia":(d>0?`${d}d antes do fim`:`${-d}d após o fim`);return d===0?"Dia D":(d>0?`D-${d}`:`D+${-d}`)}
 
 function allTasks(){
   const out=[];
   for(const c of campaigns){
     const start=parseD(c.start), end=parseD(c.end); if(!start||!end) continue;
-    const list=tplsOf(c).filter(t=>t.active!==false).map(t=>Object.assign({},t,{src:"m"})).concat((c.extras||[]).map(t=>Object.assign({},t,{src:"x"})));
+    const list=campTpls(c).filter(t=>t.active!==false).map(t=>Object.assign({},t,{src:"m"})).concat((c.extras||[]).map(t=>Object.assign({},t,{src:"x"})));
     const sched=calcList(list,c,t=>statusMap[c.id+"__"+t.key]);
     list.forEach((t,ti)=>{
       const sid=c.id+"__"+t.key, st=statusMap[sid]||{};
       const {due,dur,start:startD}=sched[ti];
+      const depNos=t.src==="x"?"":depKeys(t,list,ti).map(k=>list.findIndex(z=>z.key===k)+1).filter(v=>v>0).join(", ");
       const owners=(st.owners&&st.owners.length)?st.owners:st.owner?[st.owner]:defOwners(t);
-      out.push({sid,camp:c,tpl:t,name:st.name||t.name,phase:t.phase||(isCol(c)?"colecao":"execucao"),owners,owner:owners[0]||"",due,dur,start:startD,startedAt:st.startedAt||null,critica:!!t.critica,obs:st.obs||t.obs||"",state:st.state||"pendente",doneAt:st.doneAt,custom:!!(st.due||st.dur!=null||st.name||(st.owners&&st.owners.length))});
+      out.push({sid,camp:c,tpl:t,name:st.name||t.name,phase:t.phase||(isCol(c)?"colecao":"execucao"),owners,owner:owners[0]||"",due,dur,start:startD,startedAt:st.startedAt||null,critica:!!t.critica,obs:st.obs||t.obs||"",no:ti+1,depNos,mode:t.src==="x"?"fixa":modeOf(t),conflict:sched[ti].conflict||null,state:st.state||"pendente",doneAt:st.doneAt,custom:!!(st.due||st.dur!=null||st.name||(st.owners&&st.owners.length))});
     });
   }
   return out;
@@ -519,7 +524,7 @@ function colRow(c,tasks,x,W,bgCells,t){
   const ct=tasks.filter(k=>k.camp.id===c.id).map(k=>({k,s:k.start||addDays(k.due,-1),e:k.due})).sort((a,b)=>a.s-b.s||a.e-b.e);
   const lanes=[];let segs="";
   for(const it of ct){let li=lanes.findIndex(le=>le<=it.s);if(li<0){li=lanes.length;lanes.push(it.e)}else lanes[li]=it.e;
-    const idx=tplsOf(c).findIndex(z=>z.key===it.k.tpl.key);const pc=it.k.tpl.src==="x"?"#5F6582":COLPH[(idx<0?0:idx)%COLPH.length];
+    const idx=campTpls(c).findIndex(z=>z.key===it.k.tpl.key);const pc=it.k.tpl.src==="x"?"#5F6582":COLPH[(idx<0?0:idx)%COLPH.length];
     const l=Math.max(0,x(it.s)),r=Math.min(W,Math.max(x(it.e),x(it.s)+DW));if(r<=l)continue;const st=tstat(it.k);
     segs+=`<div class="cph ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" data-detail="${c.id}" data-gsel="${it.k.sid}" style="left:${l}px;width:${r-l}px;top:${8+li*17}px;background:${pc}" title="${esc(it.k.name)} — ${esc(namesOf(it.k.owners))} — ${br(it.s)} a ${br(it.e)} (${st.label})">${esc(shortName(it.k.name))}</div>`}
   const h=Math.max(52,8+lanes.length*17+8);
@@ -560,14 +565,14 @@ function editForm(k,z){
 function renderDetail(c,allT){
   const t=today(),L=parseD(c.start),E=parseD(c.end)||L,col=c.color||COLORS[0],dis=canWrite?"":"disabled";
   const isC=isCol(c),TL=KL(c),tl=kl(c),EL=isC?"Etapa":"Tarefa",el=isC?"etapa":"tarefa";
-  const ct=allT.filter(k=>k.camp.id===c.id).map(k=>({k,s:k.start||addDays(k.due,-1),e:k.due})).sort((a,b)=>a.s-b.s||a.e-b.e);
+  const ct=allT.filter(k=>k.camp.id===c.id).map(k=>({k,s:k.start||addDays(k.due,-1),e:k.due})).sort((a,b)=>a.s-b.s||a.e-b.e);const ctN=ct.slice().sort((a,b)=>(a.k.no||999)-(b.k.no||999));
   const min=addDays(ct.reduce((a,z)=>z.s<a?z.s:a,L),-4),max=addDays(ct.reduce((a,z)=>z.e>a?z.e:a,E),6);
   const n=diff(max,min)+1;
   const avail=Math.max(560,(document.querySelector(".wrap")?.clientWidth||1100)-250-40);
   const DW=Math.max(8,Math.floor(avail/n)),W=n*DW,x=d=>diff(d,min)*DW;
   let head="";
   for(let i=0;i<n;i++){const d=addDays(min,i);if(i===0||d.getDate()===1)head+=`<span class="dt-hm" style="left:${i*DW}px">${d.toLocaleDateString("pt-BR",{month:"short",year:"2-digit"}).replace(".","")}</span>`;if(d.getDay()===1&&DW*7>=22)head+=`<span class="dt-hw" style="left:${i*DW}px">${d.getDate()}</span>`}
-  const idxCol=k=>{const i=tplsOf(c).findIndex(z=>z.key===k.tpl.key);return k.tpl.src==="x"?"#5F6582":COLPH[(i<0?0:i)%COLPH.length]};
+  const idxCol=k=>{const i=campTpls(c).findIndex(z=>z.key===k.tpl.key);return k.tpl.src==="x"?"#5F6582":COLPH[(i<0?0:i)%COLPH.length]};
   const gPanel=(k,z)=>{const st=tstat(k),on=k.state==="feito",canCk=(canWrite||(TEAM&&!on))&&k.state!=="na";
     const acts=[canCk?`<button class="btn sm ${on?"":"primary"}" data-done="${k.sid}" type="button">${on?"Desmarcar feita":"Marcar como feita"}</button>`:""];
     if(TEAM&&k.state==="pendente")acts.push(`<button class="btn sm" data-teamstart="${k.sid}" type="button">Avisar que iniciei</button>`);
@@ -576,7 +581,7 @@ function renderDetail(c,allT){
       if(k.state==="andamento")acts.push(`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button class="btn sm" data-unstart="${k.sid}" type="button">Voltar para não iniciada</button>`);
       acts.push(`<button class="btn sm" data-na="${k.sid}" type="button">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>`);
       if(k.custom)acts.push(`<button class="btn sm" data-xreset="${k.sid}" type="button">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`);
-      if(k.tpl.src==="x")acts.push(`<button class="btn sm" data-delx="${k.sid}" type="button" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`);
+      acts.push(k.tpl.src==="x"?`<button class="btn sm" data-delx="${k.sid}" type="button" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:`<button class="btn sm" data-delm="${k.sid}" type="button" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`);
     }
     return `<div class="dt-panel" id="gpanel" style="width:${Math.min(250+W,avail+250)}px"><div class="gp-h"><b style="font-size:15px">${esc(k.name)}</b><span class="pill ${st.cls}">${st.label}</span><span class="small muted">${esc(PHASES[k.phase]||"")} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias${k.critica?" · não pode acelerar":""}${k.custom?" · ajustada nesta "+tl:""}${on&&k.doneAt?" · feita em "+brFull(new Date(k.doneAt)):""}</span><button class="iconbtn" data-gclose type="button" aria-label="Fechar" style="margin-left:auto">×</button></div><div class="gp-a">${acts.join("")}</div>${canWrite?editForm(k,z):""}</div>`};
   const rows=ct.map(z=>{const k=z.k,st=tstat(k),l=x(z.s),w=Math.max(DW,x(z.e)-l);const sel=gSel===k.sid;return `<div class="dt-row ${sel?"sel":""}"><div class="dt-lab" data-gsel="${k.sid}" role="button" tabindex="0" title="Clique para editar"><b>${esc(shortName(k.name))}</b><span>${esc(namesOf(k.owners))} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias</span><span><span class="pill ${st.cls}">${st.label}</span></span></div><div class="dt-track" style="width:${W}px"><div class="dt-bar ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" style="left:${l}px;width:${w}px;background:${idxCol(k)}" data-gsel="${k.sid}" title="${esc(k.name)} — clique para editar">${esc(shortName(k.name))}</div></div></div>${sel?gPanel(k,z):""}`}).join("");
@@ -585,8 +590,8 @@ function renderDetail(c,allT){
   const done=ct.filter(z=>z.k.state==="feito").length,tot=ct.filter(z=>z.k.state!=="na").length;
   const risk=colRisk(c,allT);
   const riskBox=risk?`<div class="note" style="background:var(--late-bg);color:var(--ink);margin:0 16px 14px"><b style="color:var(--late)">⚠️ ${isC?"Lançamento":"Início da promoção"} em risco.</b> ${esc(shortName(risk.k.name))} ${esc(risk.why)}. Como essa etapa não tem como acelerar (${risk.k.dur} dias), a previsão ${isC?"de lançamento":"de início"} passa de <b>${brFull(L)}</b> para <b>${brFull(risk.proj)}</b> (+${risk.delay} dias). Se quiser manter a data, dá para mudar em “Editar ${tl}” ou reduzir o escopo.</div>`:"";
-  const etRows=ct.map(z=>{const k=z.k,on=k.state==="feito";const mo=detMenu===k.sid?`<div class="menu-pop">${canWrite?`<button type="button" data-etedit="${k.sid}">Editar ${el}</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>${k.custom?`<button type="button" data-xreset="${k.sid}">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:""}</div>`:"";
-    return `<div class="et ${on?"is-done":""} ${k.state==="na"?"is-na":""}"><button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button><div class="nm"><b>${esc(k.name)}</b><small>${(()=>{const st=tstat(k);return `<span class="pill ${st.cls}">${st.label}</span>`})()} ${k.state==="andamento"?`iniciada em ${brFull(dayOf(k.startedAt)||today())}`:startChip(k)}${k.critica?" · não pode acelerar":""}${[k.custom?" · ajustada nesta "+tl:"",k.tpl.src==="x"?" · "+el+" extra":""].join("")}</small>${obsLine(k.obs,"obs",k.sid)}</div><input type="date" id="xs-${k.sid}" data-xstart="${k.sid}" value="${iso(z.s)}" aria-label="Início" ${dis}><input type="number" min="1" id="xu-${k.sid}" data-xdur="${k.sid}" value="${k.dur||1}" aria-label="Duração em dias" ${dis}><input type="date" id="xe-${k.sid}" data-xdue="${k.sid}" value="${iso(z.e)}" aria-label="Entrega" ${dis}>${ownerSel(k)}<div class="menu">${canWrite?`<button class="iconbtn" data-detmenu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${mo}</div></div>${etEdit===k.sid&&gSel!==k.sid?editForm(k,z):""}`}).join("");
+  const etRows=ctN.map(z=>{const k=z.k,on=k.state==="feito";const mo=detMenu===k.sid?`<div class="menu-pop">${canWrite?`<button type="button" data-etedit="${k.sid}">Editar ${el}</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>${k.custom?`<button type="button" data-xreset="${k.sid}">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:canWrite?`<button type="button" data-delm="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:""}</div>`:"";
+    return `<div class="et ${on?"is-done":""} ${k.state==="na"?"is-na":""}"><button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button><span class="eno num">${k.no||""}</span><div class="nm"><b>${esc(k.name)}</b><small>${(()=>{const st=tstat(k);return `<span class="pill ${st.cls}">${st.label}</span>`})()} ${k.state==="andamento"?`iniciada em ${brFull(dayOf(k.startedAt)||today())}`:startChip(k)}${k.critica?" · não pode acelerar":""}${[k.custom?" · ajustada nesta "+tl:"",k.tpl.src==="x"?" · "+el+" extra":""].join("")}</small>${obsLine(k.obs,"obs",k.sid)}</div>${k.tpl.src==="x"?`<span class="small muted">—</span><span class="small muted">data fixa (extra)</span>`:`<input type="text" id="xd-${k.sid}" data-cdep="${k.sid}" value="${esc(k.depNos||"")}" placeholder="—" aria-label="Depende das etapas nº" ${dis}><select class="sel" id="xm-${k.sid}" data-cmode="${k.sid}" aria-label="Quando" ${dis}><option value="auto" ${k.mode==="auto"?"selected":""}>Automática</option><option value="apos" ${k.mode==="apos"?"selected":""}>Logo após</option><option value="fixa" ${k.mode==="fixa"?"selected":""}>Data fixa</option></select>`}<input type="date" id="xs-${k.sid}" data-xstart="${k.sid}" value="${iso(z.s)}" aria-label="Início" ${dis}><input type="number" min="1" id="xu-${k.sid}" data-xdur="${k.sid}" value="${k.dur||1}" aria-label="Duração em dias" ${dis}><input type="date" id="xe-${k.sid}" data-xdue="${k.sid}" value="${iso(z.e)}" aria-label="Entrega" ${dis}>${ownerSel(k)}<div class="menu">${canWrite?`<button class="iconbtn" data-detmenu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${mo}</div></div>${etEdit===k.sid&&gSel!==k.sid?editForm(k,z):""}`}).join("");
   const addF=canWrite?`<form class="addet" data-addet="${c.id}"><label style="flex:1 1 220px">Nova ${el} nesta ${tl}<input type="text" id="ae-name" required placeholder="${isC?"Ex.: Aprovação de peça-piloto":"Ex.: Gravar vídeo com influenciadora"}"></label><label>Início<input type="date" id="ae-start" value="${iso(addDays(L,-20))}"></label><label>Entrega<input type="date" id="ae-due" value="${iso(addDays(L,-10))}"></label><label>Responsáveis<span>${team.map(p=>`<label class="ochk" style="flex-direction:row;font-weight:600;color:var(--ink)"><input type="checkbox" id="ae-o-${p.id}" data-aeo="${p.id}">${esc(p.name)}</label>`).join("")}</span></label><button class="btn primary" type="submit">Adicionar ${el}</button></form>`:"";
   $("#v-calendario").innerHTML=`
    <div class="card">
@@ -601,14 +606,14 @@ function renderDetail(c,allT){
    </div>
    <div class="card">
     <div class="card-h"><div><h2>${EL}s desta ${tl}</h2><div class="small muted">Mudar datas ou duração aqui vale só para esta ${tl}. Para mudar o padrão de todas, use a aba “Equipe e modelo de tarefas”.</div></div></div>
-    <div style="overflow-x:auto"><div class="et hd"><span></span><span>${EL}</span><span>Início</span><span>Dias</span><span>Entrega</span><span>Responsável</span><span></span></div>${etRows}</div>
+    <div style="overflow-x:auto"><div class="et hd"><span></span><span>Nº</span><span>${EL}</span><span title="Números das etapas que precisam terminar antes desta começar">Depende de</span><span title="Automática: termina quando começa a etapa que depende dela (ou no lançamento). Logo após: começa quando termina a dependência. Data fixa: fica na data atual.">Quando</span><span>Início</span><span>Dias</span><span>Entrega</span><span>Responsável</span><span></span></div>${etRows}</div>
     ${addF}
    </div>`;
 }
 function taskRow(k){
   const st=tstat(k), on=k.state==="feito";
   const own=ownerSel(k);
-  const menu=openMenu===k.sid?`<div class="menu-pop"><button type="button" data-etedit="${k.sid}">Editar tarefa</button>${k.state==="pendente"?`<button type="button" data-startnow="${k.sid}">Marcar como iniciada hoje</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica aqui"}</button><label>Mudar prazo desta tarefa<input type="date" class="sel" data-due="${k.sid}" value="${iso(k.due)}"></label>${k.custom?`<button type="button" data-due-reset="${k.sid}">Voltar ao padrão (${esc(dlabel(k.tpl))}, ${esc(namesOf(defOwners(k.tpl)))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir tarefa extra</button>`:""}</div>`:"";
+  const menu=openMenu===k.sid?`<div class="menu-pop"><button type="button" data-etedit="${k.sid}">Editar tarefa</button>${k.state==="pendente"?`<button type="button" data-startnow="${k.sid}">Marcar como iniciada hoje</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica aqui"}</button><label>Mudar prazo desta tarefa<input type="date" class="sel" data-due="${k.sid}" value="${iso(k.due)}"></label>${k.custom?`<button type="button" data-due-reset="${k.sid}">Voltar ao padrão (${esc(dlabel(k.tpl))}, ${esc(namesOf(defOwners(k.tpl)))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir tarefa extra</button>`:`<button type="button" data-delm="${k.sid}" style="color:var(--late)">Excluir tarefa desta ${kl(k.camp)}</button>`}</div>`:"";
   return `<div class="task ${on?"is-done":""} ${k.state==="na"?"is-na":""}">
    <button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}: ${esc(k.name)}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button>
    <div class="nm">${esc(k.name)}<small>${PHASES[k.phase]||""} · ${k.custom?"prazo ajustado":esc(dlabel(k.tpl))}${k.dur?" · "+k.dur+" dias de duração":""}${on&&k.doneAt?" · feita em "+brFull(new Date(k.doneAt)):""}${startChip(k)}</small>${obsLine(k.obs,"obs",k.sid)}</div>
@@ -641,16 +646,33 @@ function renderCob(tasks){
 }
 
 let refCamp=null, refCol=null;
+function isAuto(t){return t.mode==="auto"}
+function isApos(t){return t.mode==="apos"||(t.mode==null&&!!t.dep)}
+function modeOf(t){return isAuto(t)?"auto":isApos(t)?"apos":"fixa"}
+function depKeys(t,list,idx){if(Array.isArray(t.deps))return t.deps;if(t.dep&&list){for(let j=idx-1;j>=0;j--){if(list[j]&&list[j].active!==false)return [list[j].key]}}return []}
+function fixedDue(t,c){const s0=parseD(c.start),e0=parseD(c.end);const anchor=t.anchor==="fim"?e0:s0;let due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
+  if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
+  return isAfter(t)?bizFwd(due):bizBack(due)}
 function calcList(list,c,stOf){
-  const s0=parseD(c.start),e0=parseD(c.end);let prev=null;const out=[];
-  for(const t of list){const st=(stOf&&stOf(t))||{};const dur=st.dur!=null?Number(st.dur):Number(t.dur||0);let due,start=null;
-    if(st.due){due=parseD(st.due);if(dur>0)start=bizBack(addDays(due,-dur))}
-    else if(t.dep&&prev){due=bizFwd(addDays(prev.due,dur));if(dur>0)start=prev.due}
-    else{const anchor=t.anchor==="fim"?e0:s0;due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
-      if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
-      due=isAfter(t)?bizFwd(due):bizBack(due);if(dur>0)start=bizBack(addDays(due,-dur))}
-    const r={due,start,dur};out.push(r);if(st.state!=="na")prev=r}
-  return out}
+  const n=list.length,L=bizBack(parseD(c.start));
+  const st=list.map(t=>(stOf&&stOf(t))||{});
+  const dur=list.map((t,i)=>st[i].dur!=null?Number(st[i].dur):Number(t.dur||0));
+  const idx={};list.forEach((t,i)=>{if(idx[t.key]==null)idx[t.key]=i});
+  const isNA=i=>st[i].state==="na";
+  const deps=list.map((t,i)=>{if(!Array.isArray(t.deps)&&t.dep){for(let j=i-1;j>=0;j--)if(!isNA(j))return [j];return []}return depKeys(t,list,i).map(k=>idx[k]).filter(j=>j!=null&&j!==i)});
+  const succ=list.map(()=>[]);deps.forEach((ds,i)=>ds.forEach(j=>succ[j].push(i)));
+  const due=new Array(n),beg=new Array(n),gate=new Array(n),mark=new Array(n).fill(0);
+  function predEnd(js,seen){let m=null;for(const j of js){if(seen.has(j))continue;seen.add(j);let v;if(isNA(j))v=predEnd(deps[j],seen);else{solve(j);v=due[j]}if(v!=null&&(m==null||v>m))m=v}return m}
+  function solve(i){if(mark[i]===2)return;if(mark[i]===1){due[i]=L;beg[i]=L;gate[i]=L;return}mark[i]=1;const t=list[i],du=dur[i];let d,b;
+    if(st[i].due){d=parseD(st[i].due);b=du>0?bizBack(addDays(d,-du)):null}
+    else if(isApos(t)){const m=predEnd(deps[i],new Set([i]));if(m!=null){d=bizFwd(addDays(m,du));b=du>0?m:null}else{d=fixedDue(t,c);b=du>0?bizBack(addDays(d,-du)):null}}
+    else if(isAuto(t)){let m=null;for(const k of succ[i]){if(isApos(list[k])&&!st[k].due)continue;solve(k);if(m==null||gate[k]<m)m=gate[k]}d=bizBack(m||L);b=du>0?bizBack(addDays(d,-du)):null}
+    else{d=fixedDue(t,c);b=du>0?bizBack(addDays(d,-du)):null}
+    due[i]=d;beg[i]=b;gate[i]=isNA(i)?d:(b||d);mark[i]=2}
+  for(let i=0;i<n;i++)solve(i);
+  return list.map((t,i)=>{const r={due:due[i],start:beg[i],dur:dur[i],mode:st[i].due?"fixa":modeOf(t)};
+    if(!isNA(i)){const myS=gate[i];const late=deps[i].filter(j=>!isNA(j)&&due[j]>myS);if(late.length)r.conflict=late}
+    return r})}
 function draftDates(list,c){if(!c)return null;const act=list.map((t,i)=>({t,i})).filter(x=>x.t.active!==false);const r=calcList(act.map(x=>x.t),c,null);const m={};act.forEach((x,j)=>m[x.i]=r[j]);return m}
 function renderCfg(){
   if(!cfgDraft&&!TEAM){try{const k=JSON.parse(localStorage.getItem("pmm-cfg-draft")||"null");if(k&&k.people&&k.tasks&&k.col){if(!k.spot)k.spot=JSON.parse(JSON.stringify(spotTpl()));cfgDraft=k;cfgDirty=true;setTimeout(()=>toast("Recuperei alterações que não tinham sido salvas"),50)}}catch(e){}}
@@ -658,40 +680,48 @@ function renderCfg(){
   const dis=canWrite?"":"disabled";
   const ppl=cfgDraft.people.map((p,i)=>`<tr><td><input type="text" id="cp-n-${i}" data-cp="${i}" data-k="name" value="${esc(p.name)}" ${dis}></td><td><input type="email" id="cp-e-${i}" data-cp="${i}" data-k="email" value="${esc(p.email)}" placeholder="nome@email.com" ${dis}></td><td><input type="text" id="cp-r-${i}" data-cp="${i}" data-k="role" value="${esc(p.role)}" placeholder="Função" ${dis}></td><td>${canWrite?`<button class="iconbtn" data-cp-del="${i}" aria-label="Remover ${esc(p.name)}" type="button">×</button>`:""}</td></tr>`).join("");
   const order=Object.keys(PHASES);
-  const t0=today(),byStart=(a,b)=>a.start<b.start?-1:1;
-  const campsL=campaigns.filter(c=>!isCol(c)).sort(byStart),colsL=campaigns.filter(c=>colTab==="spot"?isSpot(c):isCol(c)&&!isSpot(c)).sort(byStart);
-  const pick=(list,cur)=>{if(cur&&list.some(c=>c.id===cur))return cur;const up=list.find(c=>parseD(c.start)>=t0);return (up||list[list.length-1]||{}).id||null};
-  refCamp=pick(campsL,refCamp);refCol=pick(colsL,refCol);
-  const rc=campaigns.find(c=>c.id===refCamp),rk=campaigns.find(c=>c.id===refCol);
-  const dc=draftDates(cfgDraft.tasks,rc),dk=draftDates(cfgDraft[colTab],rk);
-  const refSel=(id,list,cur,lab)=>list.length?`<label class="small muted" style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:6px">Início e fim calculados para ${lab}<select class="sel" id="${id}">${list.map(c=>`<option value="${c.id}" ${c.id===cur?"selected":""}>${esc(c.name)} · ${brFull(parseD(c.start))}</option>`).join("")}</select></label>`:"";
+  const FAKE={campanha:{id:"_p",start:"2030-01-09",end:"2030-01-18"},colecao:{id:"_c",tipo:"colecao",start:"2030-01-09",end:"2030-01-09"}};
+  const dc=draftDates(cfgDraft.tasks,FAKE.campanha),dk=draftDates(cfgDraft.col,FAKE.colecao),ds=draftDates(cfgDraft.spot,FAKE.colecao);
+  const relP=d=>{const S=parseD(FAKE.campanha.start),E=parseD(FAKE.campanha.end);if(d<S){const n=diff(S,d);return n+"d antes do início"}if(+d===+S)return "no início";if(+d===+E)return "no último dia";if(d>E)return diff(d,E)+"d após o fim";return (diff(d,S)+1)+"º dia"};
+  const relC=d=>{const L=parseD(FAKE.colecao.start);const n=diff(L,d);return n===0?"no lançamento":n>0?n+"d antes":(-n)+"d após"};
   const dcell=(pre,i,m)=>{const x=m&&m[i];if(!x)return `<td class="muted">—</td><td class="muted">—</td>`;return `<td><input type="date" data-${pre}s="${i}" value="${iso(x.start||x.due)}" aria-label="Início" ${dis}></td><td><input type="date" data-${pre}e="${i}" value="${iso(x.due)}" aria-label="Fim" ${dis}></td>`};
   const mv=(pre,i,n)=>canWrite?`<td style="white-space:nowrap"><button class="iconbtn mv" data-${pre}up="${i}" ${i===0?"disabled":""} aria-label="Subir" type="button">↑</button><button class="iconbtn mv" data-${pre}dn="${i}" ${i===n-1?"disabled":""} aria-label="Descer" type="button">↓</button></td>`:"<td></td>";
-  const row=(pre,t,i,n,m,c,isC)=>{const x=m&&m[i];const A=c?(t.anchor==="fim"?parseD(c.end):parseD(c.start)):null;const daysV=t.dep&&x&&A?diff(A,x.due):Number(t.days||0);const lk=t.dep?"disabled":dis;
+  const row=(pre,t,i,n,m,c,isC,list,mk="")=>{const rel=isC?relP:relC;const x=m&&m[i];const mo=modeOf(t),auto=mo!=="fixa";const lk=auto?"disabled":dis;
     const owners=isC?defOwners(t):(t.owners||[]);const oattr=isC?"cto":"cco";
-    return `<tr>${mv(pre,i,n)}
-    <td><input type="text" id="${pre}-n-${i}" data-${pre}="${i}" data-k="name" value="${esc(t.name)}" ${dis}></td>
-    <td><select id="${pre}-p-${i}" data-${pre}="${i}" data-k="phase" ${dis}>${order.map(p=>`<option value="${p}" ${(t.phase||(isC?"execucao":"colecao"))===p?"selected":""}>${PHASES[p]}</option>`).join("")}</select></td>
-    <td style="text-align:center"><input type="checkbox" data-${pre}="${i}" data-k="dep" ${t.dep?"checked":""} ${i===0?"disabled":""} aria-label="Depende do término da anterior" ${dis}></td>
-    <td><input type="number" min="${isC?0:1}" id="${pre}-u-${i}" data-${pre}="${i}" data-k="dur" value="${Number(t.dur||0)}" aria-label="Duração em dias" ${dis}></td>
-    <td style="white-space:nowrap"><div style="display:flex;gap:4px;align-items:center"><input type="number" id="${pre}-d-${i}" data-${pre}="${i}" data-k="days" value="${daysV}" ${t.dep?`disabled title="Calculado a partir da tarefa anterior"`:dis}>${isC?`<select id="${pre}-an-${i}" data-${pre}="${i}" data-k="anchor" ${lk} style="min-width:0;width:auto"><option value="inicio" ${t.anchor!=="fim"?"selected":""}>antes do início</option><option value="fim" ${t.anchor==="fim"?"selected":""}>antes do fim</option></select>`:`<span class="small muted">antes do lançamento</span>`}</div></td>
-    ${x?`<td><input type="date" data-${pre}s="${i}" value="${iso(x.start||x.due)}" aria-label="Início" ${dis}></td><td><input type="date" data-${pre}e="${i}" value="${iso(x.due)}" aria-label="Fim" ${dis}></td>`:`<td class="muted">—</td><td class="muted">—</td>`}
-    <td style="text-align:center"><input type="checkbox" id="${pre}-c-${i}" data-${pre}="${i}" data-k="critica" ${t.critica?"checked":""} aria-label="Não pode acelerar" ${dis}></td>
-    <td><select id="${pre}-sn-${i}" data-${pre}="${i}" data-k="weekday" ${lk}><option value="" ${wdOf(t)==null?"selected":""}>Qualquer dia</option>${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${wdOf(t)===d?"selected":""}>${DIAS[d][0].toUpperCase()+DIAS[d].slice(1)}</option>`).join("")}</select></td>
-    <td>${cfgDraft.people.map(p=>`<label class="ochk"><input type="checkbox" id="${pre}-o-${i}-${p.id}" data-${oattr}="${i}" data-pid="${p.id}" ${owners.includes(p.id)?"checked":""} ${dis}>${esc(p.name)}</label>`).join("")}</td>
+    const dk=depKeys(t,list,i);const depNums=dk.map(k=>list.findIndex(z=>z.key===k)+1).filter(v=>v>0).join(", ");
+    const A=c?(t.anchor==="fim"?parseD(c.end):parseD(c.start)):null;const daysV=auto&&x&&A?diff(A,x.due):Number(t.days||0);
+    const conf=x&&x.conflict?` title="Conflito: a etapa ${x.conflict.map(j=>j+1).join(", ")} termina depois do início desta" style="color:var(--late);font-weight:800"`:"";
+    const quando=`<div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap"><select id="${pre}${mk}-mo-${i}" data-${pre}="${i}" data-k="mode" ${dis} style="min-width:0;width:auto"><option value="auto" ${mo==="auto"?"selected":""}>Automática</option><option value="apos" ${mo==="apos"?"selected":""}>Logo após a dependência</option><option value="fixa" ${mo==="fixa"?"selected":""}>Data fixa</option></select>${mo!=="fixa"?"":`<input type="number" id="${pre}${mk}-d-${i}" data-${pre}="${i}" data-k="days" value="${daysV}" ${dis} style="width:64px">${isC?`<select id="${pre}${mk}-an-${i}" data-${pre}="${i}" data-k="anchor" ${dis} style="min-width:0;width:auto"><option value="inicio" ${t.anchor!=="fim"?"selected":""}>dias antes do início</option><option value="fim" ${t.anchor==="fim"?"selected":""}>dias antes do fim</option></select>`:`<span class="small muted">dias antes do lançamento</span>`}`}</div>`;
+    return `<tr>
+    <td style="white-space:nowrap"><b class="num" style="display:inline-block;min-width:22px">${i+1}</b>${canWrite?`<button class="iconbtn mv" data-${pre}up="${i}" ${i===0?"disabled":""} aria-label="Subir" type="button">↑</button><button class="iconbtn mv" data-${pre}dn="${i}" ${i===n-1?"disabled":""} aria-label="Descer" type="button">↓</button>`:""}</td>
+    <td><input type="text" id="${pre}${mk}-n-${i}" data-${pre}="${i}" data-k="name" value="${esc(t.name)}" ${dis}></td>
+    <td><select id="${pre}${mk}-p-${i}" data-${pre}="${i}" data-k="phase" ${dis}>${order.map(p=>`<option value="${p}" ${(t.phase||(isC?"execucao":"colecao"))===p?"selected":""}>${PHASES[p]}</option>`).join("")}</select></td>
+    <td><input type="number" min="0" id="${pre}${mk}-u-${i}" data-${pre}="${i}" data-k="dur" value="${Number(t.dur||0)}" aria-label="Duração em dias" ${dis} style="width:64px"></td>
+    <td><input type="text" id="${pre}${mk}-dp-${i}" data-${pre}="${i}" data-k="depsTxt" value="${depNums}" placeholder="—" aria-label="Depende das etapas nº" ${dis} style="width:70px"></td>
+    <td style="white-space:nowrap">${quando}</td>
+    ${x?`<td class="small" style="white-space:nowrap"><span${conf}>${x.start?rel(x.start):"—"}</span></td><td class="small" style="white-space:nowrap">${rel(x.due)}</td>`:`<td class="muted">—</td><td class="muted">—</td>`}
+    <td style="text-align:center"><input type="checkbox" id="${pre}${mk}-c-${i}" data-${pre}="${i}" data-k="critica" ${t.critica?"checked":""} aria-label="Não pode acelerar" ${dis}></td>
+    <td><select id="${pre}${mk}-sn-${i}" data-${pre}="${i}" data-k="weekday" ${lk}><option value="" ${wdOf(t)==null?"selected":""}>Qualquer dia</option>${[1,2,3,4,5,6,0].map(d=>`<option value="${d}" ${wdOf(t)===d?"selected":""}>${DIAS[d][0].toUpperCase()+DIAS[d].slice(1)}</option>`).join("")}</select></td>
+    <td>${cfgDraft.people.map(p=>`<label class="ochk"><input type="checkbox" id="${pre}${mk}-o-${i}-${p.id}" data-${oattr}="${i}" data-pid="${p.id}" ${owners.includes(p.id)?"checked":""} ${dis}>${esc(p.name)}</label>`).join("")}</td>
     <td>${canWrite?`<button class="iconbtn" data-${pre}-del="${i}" aria-label="Remover" type="button">×</button>`:""}</td></tr>`};
-  const nT=cfgDraft.tasks.length,nC=cfgDraft[colTab].length;
-  const tks=cfgDraft.tasks.map((t,i)=>row("ct",t,i,nT,dc,rc,true)).join("");
-  const cols=cfgDraft[colTab].map((t,i)=>row("cc",t,i,nC,dk,rk,false)).join("");
-  const head=(lab,fim)=>`<thead><tr><th>Ordem</th><th style="min-width:260px">${lab}</th><th>Fase</th><th title="Marcado: só começa quando a anterior termina (o início é o fim da anterior)">Depende da anterior</th><th title="Quantos dias leva">Duração (dias)</th><th title="Quantos dias antes da data de referência é a entrega">Entrega (dias)</th><th>Início</th><th>${fim}</th><th title="Não tem como acelerar: se começar atrasada, empurra a data de lançamento">Não pode acelerar</th><th title="Ajusta a entrega para esse dia da semana, sem atrasar o cronograma">Dia da semana</th><th>Responsáveis</th><th></th></tr></thead>`;
+  const nT=cfgDraft.tasks.length;
+  const tks=cfgDraft.tasks.map((t,i)=>row("ct",t,i,nT,dc,FAKE.campanha,true,cfgDraft.tasks)).join("");
+  const cols=cfgDraft.col.map((t,i)=>row("cc",t,i,cfgDraft.col.length,dk,FAKE.colecao,false,cfgDraft.col,"k")).join(""),spots=cfgDraft.spot.map((t,i)=>row("cc",t,i,cfgDraft.spot.length,ds,FAKE.colecao,false,cfgDraft.spot,"s")).join("");
+  const head=(lab,fim)=>`<thead><tr><th>Nº</th><th style="min-width:260px">${lab}</th><th>Fase</th><th title="Quantos dias leva">Duração (dias)</th><th title="Números das etapas que precisam terminar antes desta começar. Ex.: 2 ou 2, 3">Depende da etapa nº</th><th title="Automática: termina quando começa a etapa que depende dela (ou no lançamento, se nenhuma depender). Logo após a dependência: começa quando terminam as etapas de que depende. Data fixa: X dias antes do início/fim.">Quando</th><th>Começa</th><th>${fim}</th><th title="Não tem como acelerar: se começar atrasada, empurra a data de lançamento">Não pode acelerar</th><th title="Só para data fixa: ajusta a entrega para esse dia da semana">Dia da semana</th><th>Responsáveis</th><th></th></tr></thead>`;
   $("#v-config").innerHTML=`
    <div class="card"><div class="card-h"><h2>Equipe</h2>${canWrite?`<button class="btn sm" id="cp-add" type="button">+ Pessoa</button>`:""}</div>
     <div class="cfg-table"><table><thead><tr><th>Nome</th><th>E-mail</th><th>Função</th><th></th></tr></thead><tbody>${ppl}</tbody></table></div></div>
-   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · ${colTab==="spot"?"Spots":"Coleções"}</h2><div class="seg-t" role="group" aria-label="Modelo" style="margin:6px 0"><button type="button" data-coltab="col" aria-pressed="${colTab==="col"}">Coleções</button><button type="button" data-coltab="spot" aria-pressed="${colTab==="spot"}">Spots</button></div><div class="small muted">Vale para ${colTab==="spot"?"todos os spots":"todas as coleções"}. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a etapa inteira; “Depende da anterior” faz a etapa começar quando a anterior termina.</div>${refSel("cfg-refk",colsL,refCol,colTab==="spot"?"o spot":"a coleção")}</div>${canWrite?`<button class="btn sm" id="cc-add" type="button">+ Etapa</button>`:""}</div>
-    <div class="cfg-table"><table>${head("Etapa","Fim (entrega)")}<tbody>${cols}</tbody></table></div>
+   <div class="note" style="margin:0 0 12px">Os modelos valem para as <b>próximas</b> promoções, coleções e spots que forem criados. Os que já existem têm as próprias tarefas: para mudar um deles, edite direto no Calendário (clicando nele) ou na aba Tarefas.</div>
+   <div class="card" data-model="tasks"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Etapas <b>Automáticas</b> terminam quando começa a tarefa que depende delas, e a que ninguém depende termina no início da promoção. Use “Data fixa” para o que tem dia certo (ex.: 0 dias antes do fim = último dia).</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="tasks" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="tasks" type="button">+ Tarefa</button></span>`:""}</div>
+    <div class="cfg-table"><table>${head("Tarefa","Termina")}<tbody>${tks}</tbody></table></div>
    </div>
-   <div class="card"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Vale para todas as promoções. Prazo = data de início (ou fim) da promoção menos os dias; número negativo = depois. Use ↑ ↓ para mudar a ordem. Mudar Início ou Fim mantém a duração e move a tarefa inteira.</div>${refSel("cfg-refc",campsL,refCamp,"a promoção")}</div>${canWrite?`<button class="btn sm" id="ct-add" type="button">+ Tarefa no modelo</button>`:""}</div>
-    <div class="cfg-table"><table>${head("Tarefa","Fim (prazo)")}<tbody>${tks}</tbody></table></div>
+   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo.</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
+    <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${cols}</tbody></table></div>
+   </div>
+   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo.</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
+    <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${spots}</tbody></table></div>
+   </div>
+   <div class="card">
        ${canWrite?`<div class="savebar" id="cfg-savebar">${saveBarHtml()}</div>`:""}
    </div>`;
 }
@@ -770,6 +800,8 @@ async function saveModal(){
   if(end<start){err.textContent="A data de fim precisa ser igual ou depois do início.";err.hidden=false;return}
   const base=editing?campaigns.find(x=>x.id===editing):{};
   const data={tipo:sp?"spot":col?"colecao":"campanha",name,start,end,color:pickColor,mecanica:$("#f-mec").value.trim(),notas:$("#f-notes").value.trim(),extras:base?.extras||[],createdAt:base?.createdAt||new Date().toISOString()};
+  if(editing&&Array.isArray(base?.tasks))data.tasks=base.tasks;
+  if(!editing)data.tasks=JSON.parse(JSON.stringify(tplsOf({tipo:data.tipo}).filter(t=>t.active!==false)));
   const id=editing||db.collection("campaigns").doc().id;
   const ok=await commit([{path:"campaigns/"+id,data}],(editing?"editar ":"criar ")+name,(sp?"Spot "+(editing?"atualizado":"criado"):(col?"Coleção ":"Promoção ")+(editing?"atualizada":"criada")));
   if(ok)closeModal();
@@ -798,6 +830,7 @@ document.addEventListener("click",async e=>{
   if(el.id==="new-spot"){openModal(null,"spot");return}
   if(el.id==="undo"){undo();return}
   if(el.id==="redo"){redo();return}
+  if(d.allauto){const arr=cfgDraft[d.allauto];arr.forEach((t,i)=>{const mo=modeOf(t);t.deps=depKeys(t,arr,i);t.dep=false;if(mo==="apos"||!(t.anchor==="fim"||Number(t.days||0)<=0))t.mode="auto";else t.mode=mo});markDirty();renderCfg();toast("Pronto: as etapas antes do lançamento ficaram automáticas. Confira “Depende da etapa nº” e salve.");return}
   if(d.coltab){colTab=d.coltab;refCol=null;renderCfg();return}
   if(d.tipo){filt.tipo=d.tipo;filt.camp="all";saveUI();render();return}
   if(d.detail){if(el.closest(".kpi-list"))kpiOpen=null;detail=d.detail;detMenu=null;view="calendario";gSel=d.gsel||null;etEdit=gSel&&canWrite?gSel:null;render();if(gSel)focusPanel();else window.scrollTo({top:0});return}
@@ -826,6 +859,9 @@ document.addEventListener("click",async e=>{
   if(d.menu){openMenu=openMenu===d.menu?null:d.menu;render();return}
   if(d.na){const k=allTasks().find(x=>x.sid===d.na);openMenu=null;detMenu=null;setStatus(d.na,{state:k.state==="na"?"pendente":"na"});return}
   if(d.dueReset){openMenu=null;setStatus(d.dueReset,{due:null});return}
+  if(d.delm){const i=d.delm.indexOf("__"),cid=d.delm.slice(0,i),key=d.delm.slice(i+2);const c=campaigns.find(x=>x.id===cid);if(!c)return;gSel=null;etEdit=null;openMenu=null;detMenu=null;
+    const before=getLocal("campaigns/"+cid);const tasks=JSON.parse(JSON.stringify(campTpls(c))).filter(t=>t.key!==key);c.tasks=tasks;const data=Object.assign({},before,{tasks});render();
+    commit([{path:"campaigns/"+cid,data,before}],"excluir tarefa","Excluída desta "+kl(c)+" (dá para desfazer)");return}
   if(d.delx){gSel=null;etEdit=null;const [cid,key]=d.delx.split("__");const c=campaigns.find(x=>x.id===cid);openMenu=null;detMenu=null;const extras=(c.extras||[]).filter(t=>t.key!==key);saveExtras(cid,extras,"Excluída","excluir tarefa extra");return}
   if(d.addxOpen){addxOpen=d.addxOpen;render();setTimeout(()=>$("#ax-name-"+addxOpen)?.focus(),20);return}
   if("addxClose" in d){addxOpen=null;render();return}
@@ -836,20 +872,21 @@ document.addEventListener("click",async e=>{
   if(el.id==="f-save"){saveModal();return}
   if(el.id==="f-del"){deleteCamp();return}
   if(el.id==="cp-add"){cfgDraft.people.push({id:"p"+rid(),name:"Nova pessoa",email:"",whatsapp:"",role:""});cfgDirty=true;renderCfg();return}
-  if(el.id==="ct-add"){cfgDraft.tasks.push({key:"t"+rid(),name:"Nova tarefa",phase:"execucao",days:3,anchor:"inicio",owner:"",active:true});cfgDirty=true;renderCfg();return}
+  if(el.id==="ct-add"){cfgDraft.tasks.push({key:"t"+rid(),name:"Nova tarefa",phase:"execucao",days:3,dur:1,anchor:"inicio",owner:"",active:true,mode:"auto",deps:[]});cfgDirty=true;renderCfg();return}
   if(d.cpDel!==undefined){cfgDraft.people.splice(Number(d.cpDel),1);cfgDirty=true;renderCfg();return}
   if(d.ctDel!==undefined){cfgDraft.tasks.splice(Number(d.ctDel),1);cfgDirty=true;renderCfg();return}
-  if(el.id==="cc-add"){cfgDraft[colTab].push({key:"c"+rid(),name:"Nova etapa",dur:5,days:5,anchor:"lanc",owners:[],active:true,phase:"colecao"});cfgDirty=true;renderCfg();return}
-  if(d.ccDel!==undefined){cfgDraft[colTab].splice(Number(d.ccDel),1);cfgDirty=true;renderCfg();return}
+  if(d.ccadd==="tasks"){cfgDraft.tasks.push({key:"t"+rid(),name:"Nova tarefa",phase:"execucao",days:3,dur:1,anchor:"inicio",owner:"",active:true,mode:"auto",deps:[]});cfgDirty=true;renderCfg();return}
+  if(d.ccadd){cfgDraft[d.ccadd].push({key:"c"+rid(),name:"Nova etapa",dur:5,days:5,anchor:"lanc",owners:[],active:true,phase:"colecao",mode:"auto",deps:[]});cfgDirty=true;renderCfg();return}
+  if(d.ccDel!==undefined){cfgDraft[MK(el)].splice(Number(d.ccDel),1);cfgDirty=true;renderCfg();return}
   if(d.ctup!==undefined||d.ctdn!==undefined||d.ccup!==undefined||d.ccdn!==undefined){
-    const arr=(d.ctup!==undefined||d.ctdn!==undefined)?cfgDraft.tasks:cfgDraft[colTab];const i=Number(d.ctup??d.ctdn??d.ccup??d.ccdn);const j=(d.ctup!==undefined||d.ccup!==undefined)?i-1:i+1;
+    const arr=(d.ctup!==undefined||d.ctdn!==undefined)?cfgDraft.tasks:cfgDraft[MK(el)];const i=Number(d.ctup??d.ctdn??d.ccup??d.ccdn);const j=(d.ctup!==undefined||d.ccup!==undefined)?i-1:i+1;
     if(j<0||j>=arr.length)return;[arr[i],arr[j]]=[arr[j],arr[i]];if(arr[0])arr[0].dep=false;markDirty();renderCfg();return}
   if(el.id==="cfg-reset"){cfgDirty=false;keepDraft();renderCfg();return}
   if(el.id==="cfg-save"){
     const people=cfgDraft.people.map(p=>({id:p.id,name:(p.name||"").trim()||"Sem nome",email:(p.email||"").trim(),whatsapp:(p.whatsapp||"").trim(),role:(p.role||"").trim()}));
-    const tasks=cfgDraft.tasks.map(t=>{const ow=defOwners(t).filter(id=>people.some(p=>p.id===id));return {key:t.key,name:(t.name||"").trim()||"Tarefa",phase:t.phase||"execucao",days:Number(t.days||0),dur:Math.max(0,Math.round(Number(t.dur)||0)),anchor:t.anchor==="fim"?"fim":"inicio",dep:!!t.dep,critica:!!t.critica,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),owners:ow,owner:ow[0]||"",active:t.active!==false}});
-    const col=cfgDraft.col.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:PHASES[t.phase]?t.phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(1,Number(t.dur||1)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,dep:!!t.dep,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),active:t.active!==false}));
-    const spot=cfgDraft.spot.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:PHASES[t.phase]?t.phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(1,Number(t.dur||1)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,dep:!!t.dep,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),active:t.active!==false}));
+    const tasks=cfgDraft.tasks.map(t=>{const ow=defOwners(t).filter(id=>people.some(p=>p.id===id));return {key:t.key,name:(t.name||"").trim()||"Tarefa",phase:t.phase||"execucao",days:Number(t.days||0),dur:Math.max(0,Math.round(Number(t.dur)||0)),anchor:t.anchor==="fim"?"fim":"inicio",dep:false,mode:modeOf(t),deps:depKeys(t,cfgDraft.tasks,cfgDraft.tasks.indexOf(t)),critica:!!t.critica,weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),owners:ow,owner:ow[0]||"",active:t.active!==false}});
+    const col=cfgDraft.col.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:PHASES[t.phase]?t.phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(0,Math.round(Number(t.dur)||0)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,dep:false,mode:modeOf(t),deps:depKeys(t,cfgDraft.col,cfgDraft.col.indexOf(t)),weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),active:t.active!==false}));
+    const spot=cfgDraft.spot.map(t=>({key:t.key,name:(t.name||"").trim()||"Etapa",phase:PHASES[t.phase]?t.phase:"colecao",anchor:"lanc",days:Number(t.days||0),dur:Math.max(0,Math.round(Number(t.dur)||0)),owners:(t.owners||[]).filter(id=>people.some(p=>p.id===id)),critica:!!t.critica,dep:false,mode:modeOf(t),deps:depKeys(t,cfgDraft.spot,cfgDraft.spot.indexOf(t)),weekday:(()=>{if(t.weekday==="")return null;const v=wdOf(t);return v==null||isNaN(v)?null:v})(),active:t.active!==false}));
     const ok=await commit([{path:"config/equipe",data:{people}},{path:"config/modelo",data:{tasks}},{path:"config/modeloColecao",data:{tasks:col}},{path:"config/modeloSpot",data:{tasks:spot}}],"equipe e modelos","Equipe e modelos salvos");
     if(ok){team=people;templates=tasks;colTemplates=col;spotTemplates=spot;cfgDirty=false;keepDraft();render()}
     return;
@@ -862,30 +899,53 @@ document.addEventListener("change",e=>{
   if(el.id==="cfg-refk"){refCol=el.value;renderCfg();return}
   if(d.cts!==undefined||d.cte!==undefined||d.ccs!==undefined||d.cce!==undefined){
     const isC=d.cts!==undefined||d.cte!==undefined,i=Number(isC?(d.cts??d.cte):(d.ccs??d.cce));
-    const t=isC?cfgDraft.tasks[i]:cfgDraft[colTab][i],c=campaigns.find(x=>x.id===(isC?refCamp:refCol));
+    const t=isC?cfgDraft.tasks[i]:cfgDraft[MK(el)][i],c=campaigns.find(x=>x.id===(isC?refCamp:refCol));
     if(!t||!c||!el.value){renderCfg();return}
     const v=parseD(el.value),dur=Number(t.dur||0);
     const due=(d.cte!==undefined||d.cce!==undefined)?v:addDays(v,dur);
     const A=t.anchor==="fim"?parseD(c.end):parseD(c.start);t.days=diff(A,due);
-    if(t.dep){t.dep=false;toast("Deixou de depender da anterior, porque a data foi definida à mão")}
+    if(modeOf(t)!=="fixa"){t.deps=depKeys(t,isC?cfgDraft.tasks:cfgDraft[MK(el)],i);t.mode="fixa";t.dep=false;toast("Virou data fixa, porque a data foi definida à mão")}
     const w=wdOf(t);if(w!=null&&!isNaN(w)&&due.getDay()!==w){t.weekday="";t.snap=false;toast("Dia da semana tirado para respeitar a data escolhida")}
     else if(due.getDay()===0||due.getDay()===6)toast("O fim cai no fim de semana: vai para a sexta anterior");
     markDirty();renderCfg();return}
   if(el.id==="f-camp"){filt.camp=el.value;saveUI();render();return}
   if(el.id==="f-show"){filt.show=el.value;saveUI();render();return}
   if(d.realstart){if(el.value){detMenu=null;setStatus(d.realstart,{startedAt:el.value})}return}
+  if(d.cdep||d.cmode){campTaskEdit(d.cdep||d.cmode,d.cdep?"deps":"mode",el.value);return}
   if(d.xdur){const v=Math.max(1,Math.round(Number(el.value)||1));setStatus(d.xdur,{dur:v});return}
   if(d.xdue){if(el.value)setStatus(d.xdue,{due:el.value});return}
   if(d.xstart){const k=allTasks().find(z=>z.sid===d.xstart);if(!k||!el.value)return;const nd=diff(k.due,parseD(el.value));if(nd<1){toast("O início precisa ser antes da entrega");render();return}setStatus(d.xstart,{dur:nd});return}
   if(d.owner){setStatus(d.owner,{owner:el.value==="__def"?null:el.value,owners:null});return}
   if(d.cto!==undefined){const t=cfgDraft.tasks[Number(d.cto)];const s2=new Set(defOwners(t));el.checked?s2.add(d.pid):s2.delete(d.pid);t.owners=[...s2];t.owner=t.owners[0]||"";markDirty();return}
-  if(d.cco!==undefined){const t=cfgDraft[colTab][Number(d.cco)];const s2=new Set(t.owners||[]);el.checked?s2.add(d.pid):s2.delete(d.pid);t.owners=[...s2];markDirty();return}
-  if(d.cc!==undefined){const t=cfgDraft[colTab][Number(d.cc)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","dep","weekday"].includes(d.k))renderCfg();return}
+  if(d.cco!==undefined){const t=cfgDraft[MK(el)][Number(d.cco)];const s2=new Set(t.owners||[]);el.checked?s2.add(d.pid):s2.delete(d.pid);t.owners=[...s2];markDirty();return}
+  if(d.cc!==undefined&&(d.k==="depsTxt"||d.k==="mode")){cfgDepMode(cfgDraft[MK(el)],Number(d.cc),d.k,el.value,"cc");return}
+  if(d.cc!==undefined){const t=cfgDraft[MK(el)][Number(d.cc)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","dep","weekday"].includes(d.k))renderCfg();return}
   if(d.due){if(el.value){openMenu=null;setStatus(d.due,{due:el.value})}return}
   if(d.cp!==undefined){cfgDraft.people[Number(d.cp)][d.k]=el.value;markDirty();return}
+  if(d.ct!==undefined&&(d.k==="depsTxt"||d.k==="mode")){cfgDepMode(cfgDraft.tasks,Number(d.ct),d.k,el.value,"ct");return}
   if(d.ct!==undefined){const t=cfgDraft.tasks[Number(d.ct)];t[d.k]=el.type==="checkbox"?el.checked:el.value;markDirty();if(["days","dur","anchor","weekday","dep"].includes(d.k))renderCfg();return}
 });
 function focusPanel(){setTimeout(()=>{const p=$("#gpanel");if(p){p.scrollIntoView({block:"nearest",behavior:"smooth"})}},30)}
+function cfgDepMode(arr,i,k,v,pre){const t=arr[i];if(!t)return;
+  if(k==="depsTxt"){const nums=(v.match(/\d+/g)||[]).map(Number);const keys=[];const bad=[];
+    nums.forEach(nu=>{const z=arr[nu-1];if(!z||nu-1===i)bad.push(nu);else if(!keys.includes(z.key))keys.push(z.key)});
+    t.mode=modeOf(t);t.deps=keys;t.dep=false;if(bad.length)toast("Etapa nº "+bad.join(", ")+" não existe (ou é ela mesma)")}
+  else{if(v==="fixa"&&modeOf(t)!=="fixa"){const c=pre==="ct"?{id:"_p",start:"2030-01-09",end:"2030-01-18"}:{id:"_c",tipo:"colecao",start:"2030-01-09",end:"2030-01-09"};const m=draftDates(arr,c);const x=m&&m[i];
+      if(x){const A=t.anchor==="fim"?parseD(c.end):parseD(c.start);t.days=diff(A,x.due)}}
+    t.deps=depKeys(t,arr,i);t.dep=false;t.mode=v}
+  markDirty();renderCfg()}
+function campTaskEdit(sid,field,v){const k=allTasks().find(z=>z.sid===sid);if(!k||k.tpl.src==="x")return;const c=k.camp;
+  const before=getLocal("campaigns/"+c.id);const tasks=JSON.parse(JSON.stringify(campTpls(c)));const act=tasks.filter(t=>t.active!==false);
+  const i=tasks.findIndex(t=>t.key===k.tpl.key);if(i<0)return;const t=tasks[i];const ai=act.findIndex(z=>z.key===t.key);
+  t.deps=depKeys(t,act,ai);t.mode=modeOf(t);t.dep=false;
+  if(field==="deps"){const nums=(v.match(/\d+/g)||[]).map(Number);const keys=[],bad=[];
+    nums.forEach(nu=>{const z=act[nu-1];if(!z||z.key===t.key)bad.push(nu);else if(!keys.includes(z.key))keys.push(z.key)});
+    t.deps=keys;if(bad.length)toast("Etapa nº "+bad.join(", ")+" não existe (ou é ela mesma)")}
+  else{if(v==="fixa"){const A=t.anchor==="fim"?parseD(c.end):parseD(c.start);t.days=diff(A,k.due);t.weekday=null}t.mode=v}
+  const data=Object.assign({},before,{tasks});const ops=[{path:"campaigns/"+c.id,data,before}];
+  const st=statusMap[sid];if(st&&st.due){const nx=Object.assign({},st,{updatedAt:new Date().toISOString()});delete nx.due;ops.push({path:"status/"+sid,data:nx,before:st})}
+  c.tasks=tasks;render();
+  commit(ops,"mudar "+(field==="deps"?"dependência":"quando")+" de “"+shortName(k.name)+"”",st&&st.due&&!(field==="mode"&&v==="fixa")?"Salvo (a data ajustada à mão foi tirada para valer o cálculo)":"Salvo")}
 function keepDraft(){try{if(cfgDirty&&cfgDraft)localStorage.setItem("pmm-cfg-draft",JSON.stringify(cfgDraft));else localStorage.removeItem("pmm-cfg-draft")}catch(e){}}
 function markDirty(){cfgDirty=true;keepDraft();const sb=$("#cfg-savebar");if(sb)sb.innerHTML=saveBarHtml()}
 function saveBarHtml(){return `${cfgDirty?`<span class="small" style="color:var(--soon);font-weight:700">Alterações não salvas</span><button class="btn ghost" id="cfg-reset" type="button">Descartar</button>`:""}<button class="btn primary" id="cfg-save" type="button" ${cfgDirty?"":"disabled"}>Salvar equipe e modelos</button>`}
@@ -894,8 +954,8 @@ document.addEventListener("input",e=>{const d=e.target.dataset;
     if(tid==="ee-start"&&S.value){const n=diff(ed,parseD(S.value));if(n>=1)U.value=n}
     else{const n=Math.max(1,Math.round(Number(U.value)||1));S.value=iso(addDays(ed,-n))}}}
   if(d.cp!==undefined){cfgDraft.people[Number(d.cp)][d.k]=e.target.value;if(!cfgDirty)markDirty()}
-  if(d.ct!==undefined&&e.target.type!=="checkbox"){cfgDraft.tasks[Number(d.ct)][d.k]=e.target.value;if(!cfgDirty)markDirty()}
-  if(d.cc!==undefined&&e.target.type!=="checkbox"){cfgDraft[colTab][Number(d.cc)][d.k]=e.target.value;if(!cfgDirty)markDirty()}
+  if(d.ct!==undefined&&e.target.type!=="checkbox"&&d.k!=="depsTxt"){cfgDraft.tasks[Number(d.ct)][d.k]=e.target.value;if(!cfgDirty)markDirty()}
+  if(d.cc!==undefined&&e.target.type!=="checkbox"&&d.k!=="depsTxt"){cfgDraft[MK(e.target)][Number(d.cc)][d.k]=e.target.value;if(!cfgDirty)markDirty()}
 });
 document.addEventListener("submit",e=>{
   e.preventDefault();
