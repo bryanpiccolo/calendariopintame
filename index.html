@@ -117,7 +117,8 @@ button.tile[aria-expanded=true]{box-shadow:inset 0 0 0 2px var(--ink)}
 .camp{position:absolute;top:10px;height:32px;border-radius:9px;padding:0 10px;display:flex;align-items:center;font-weight:800;font-size:13px;white-space:nowrap;overflow:hidden;cursor:pointer;box-shadow:0 1px 0 rgba(0,0,0,.08)}
 .dot{position:absolute;top:21px;width:10px;height:10px;border-radius:50%;border:2px solid var(--surface);transform:translateX(-50%);z-index:2;cursor:pointer}
 .dot.late{background:var(--late)} .dot.soon{background:var(--soon)} .dot.ok{background:var(--muted)} .dot.done{background:var(--done)} .dot.na{background:var(--na-bg);border-color:var(--na)}
-.today-line{position:absolute;top:0;bottom:0;width:2px;background:var(--today);z-index:2;pointer-events:none}
+.today-line{position:absolute;top:0;bottom:0;width:3px;margin-left:-1px;background:var(--today);z-index:6;pointer-events:none;box-shadow:0 0 0 1px var(--surface)}
+.today-tag{position:absolute;top:2px;transform:translateX(-50%);background:var(--today);color:#fff;font-size:11px;font-weight:800;padding:1px 7px;border-radius:6px;white-space:nowrap;z-index:7;pointer-events:none}
 .legend{display:flex;flex-wrap:wrap;gap:14px;padding:10px 16px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
 .legend span{display:inline-flex;align-items:center;gap:6px}
 .legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
@@ -375,7 +376,7 @@ function tipoSeg(){return `<div class="seg-t" role="group" aria-label="Mostrar">
 const DIAS=["domingo","segunda-feira","terça-feira","quarta-feira","quinta-feira","sexta-feira","sábado"];
 function wdOf(t){if(t.weekday!==undefined&&t.weekday!==null&&t.weekday!=="")return Number(t.weekday);return t.snap?1:null}
 function isAfter(t){return t.anchor==="fim"&&Number(t.days)<0}
-function dlabel(t){if(isAuto(t))return "automática";if(isApos(t))return "logo após a etapa de que depende";const b=dlabel0(t),wd=wdOf(t);if(wd==null)return b;return isAfter(t)?`1ª ${DIAS[wd]} após `+(Number(t.days)===-1?"o fim":b):`${DIAS[wd]} até ${b}`}
+function dlabel(t){if(isAuto(t))return "automática";if(isApos(t))return (Array.isArray(t.deps)&&!t.deps.length)?"início automático (conta de trás pra frente)":"logo após a etapa de que depende";const b=dlabel0(t),wd=wdOf(t);if(wd==null)return b;return isAfter(t)?`1ª ${DIAS[wd]} após `+(Number(t.days)===-1?"o fim":b):`${DIAS[wd]} até ${b}`}
 function dlabel0(t){if(t.anchor==="lanc"){const d=Number(t.days||0);return d>0?`${d} dias antes do lançamento`:(d===0?"no lançamento":`${-d} dias após o lançamento`)}const d=Number(t.days||0);if(t.anchor==="fim")return d===0?"no último dia":(d>0?`${d}d antes do fim`:`${-d}d após o fim`);return d===0?"Dia D":(d>0?`D-${d}`:`D+${-d}`)}
 
 function allTasks(){
@@ -397,14 +398,21 @@ function allTasks(){
 function bizBack(d){const g=d.getDay();return g===6?addDays(d,-1):g===0?addDays(d,-2):d}
 function bizFwd(d){const g=d.getDay();return g===6?addDays(d,2):g===0?addDays(d,1):d}
 function dayOf(v){if(!v)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(v))return parseD(v);const x=new Date(v);return new Date(x.getFullYear(),x.getMonth(),x.getDate())}
-function colRisk(c,tasks){const t=today();let best=null;
+function promoRisk(c,tasks){const t=today();let best=null;
   for(const k of tasks.filter(k=>k.camp.id===c.id&&k.critica&&k.state!=="na")){
     let d=0,why="";
     if(k.state==="feito"){d=k.doneAt?diff(dayOf(k.doneAt),k.due):0;why="terminou depois do prazo"}
     else if(k.state==="andamento"){const sa=dayOf(k.startedAt)||t;const a=k.start?diff(sa,k.start):0,b=diff(t,k.due);d=Math.max(a,b);why=a>=b?`começou em ${brFull(sa)}, ${a} dia(s) depois do previsto`:`passou do prazo de entrega`}
     else if(k.start){d=diff(t,k.start);why=`ainda não começou (deveria ter começado em ${brFull(k.start)})`}
-    if(d>0&&(!best||d>best.delay))best={delay:d,k,why}}
+    if(d>0&&(!best||d>best.delay))best={delay:d,k,why,promo:true}}
   if(!best)return null;best.proj=bizFwd(addDays(parseD(c.start),best.delay));return best}
+function colRisk(c,tasks){if(!isCol(c))return promoRisk(c,tasks);const t=today(),L=parseD(c.start);let best=null;
+  for(const k of tasks.filter(k=>k.camp.id===c.id&&k.state!=="na"&&k.state!=="feito")){
+    const tp=k.tpl||{};if(k.mode==="fixa"&&(tp.anchor==="fim"||Number(tp.days||0)<0))continue;
+    let end=k.due,why=`termina em ${brFull(k.due)}`;
+    if(k.due<t){end=t;why=`está atrasada (prazo era ${brFull(k.due)})`}
+    if(end>L&&(!best||end>best.proj))best={proj:end,k,why}}
+  if(!best)return null;best.proj=bizFwd(best.proj);best.delay=diff(best.proj,L);return best}
 function tstat(t){
   if(t.state==="feito") return {cls:"done",label:"Feita"};
   if(t.state==="na") return {cls:"na",label:"Não se aplica"};
@@ -494,7 +502,7 @@ function renderCal(tasks){
     const openN=ct.filter(isOpen).length, lateN=ct.filter(k=>isLate(k)).length;
     rows+=`<div class="tl-row"><div class="tl-lab"><b data-detail="${c.id}" class="clickable">${esc(c.name)}</b><span>${br(s)} → ${br(e)}${(()=>{const r=colRisk(c,tasks);return r?` · <span style="color:var(--late);font-weight:800" title="${esc(shortName(r.k.name))} ${esc(r.why)}">início previsto ${br(r.proj)} (+${r.delay}d)</span>`:""})()}${lateN?` · <span style="color:var(--late);font-weight:800">${lateN} atrasada${lateN>1?"s":""}</span>`:openN?` · ${openN} abertas`:" · pronta"}</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div>${prep}${bar}${dots}</div></div>`;
   }
-  const tx=diff(t,start);const todayLine=(tx>=0&&tx<n)?`<div class="today-line" style="left:${170+tx*DW+DW/2-1}px"></div>`:"";
+  const tx=diff(t,start);const todayLine=(tx>=0&&tx<n)?`<div class="today-line" style="left:${170+tx*DW+DW/2-1}px"></div><span class="today-tag" style="left:${170+tx*DW+DW/2}px">Hoje ${br(t)}</span>`:"";
   const body=vis.length?rows:`<div class="tl-row"><div class="tl-lab"><span>Nada neste período</span></div><div class="tl-track" style="width:${W}px;height:52px"><div class="tl-bg">${bgCells}</div></div></div>`;
   // upcoming deliveries
   const up=tasks.filter(k=>isOpen(k)&&diff(k.due,t)<=7).sort((a,b)=>a.due-b.due).slice(0,10);
@@ -509,7 +517,7 @@ function renderCal(tasks){
      <div class="legend"><span><i class="hatch" style="background:repeating-linear-gradient(135deg,#2D7FF955 0 6px,#2D7FF922 6px 12px)"></i>preparação</span><span><i style="background:#2D7FF9;width:22px;border-radius:5px"></i>promoção no ar</span><span><i style="background:var(--late)"></i>tarefa atrasada</span><span><i style="background:var(--soon)"></i>vence em até 3 dias</span><span><i style="background:var(--muted)"></i>no prazo</span><span><i style="background:var(--done)"></i>feita</span><span><i style="background:var(--today)"></i>hoje</span>${filt.tipo!=="campanhas"&&colTemplates.length?`<span style="flex-basis:100%;height:0"></span><span><b>${filt.tipo==="spots"?"Spots":"Coleções"}:</b></span>${(filt.tipo==="spots"?spotTpl():colTemplates).filter(k=>k.active!==false).map((k,i)=>`<span><i style="background:${COLPH[i%COLPH.length]};width:22px;border-radius:4px"></i>${esc(shortName(k.name))}</span>`).join("")}<span><i style="background:#1D2140;transform:rotate(45deg);border-radius:2px"></i>lançamento</span>`:""}</div>
    </div>
    <div class="card"><div class="card-h"><h2>Entregas desta semana e atrasadas</h2><button class="btn sm" data-view-go="tarefas" type="button">Ver todas as tarefas</button></div><div class="up">${upHtml}</div></div>`;
-  const sc=$("#tl-scroll"); if(sc&&tlOffset===0&&tx>=0) sc.scrollLeft=Math.max(0,tx*DW-(big?7:20)*DW);
+  const sc=$("#tl-scroll"); if(sc&&tlOffset===0&&tx>=0) sc.scrollLeft=Math.max(0,tx*DW-Math.max(60,(big?7:20)*DW));
 }
 
 function years(){const ys=new Set([today().getFullYear()]);campaigns.forEach(c=>{const d=parseD(c.start);if(d)ys.add(d.getFullYear())});return [...ys].sort()}
@@ -586,10 +594,10 @@ function renderDetail(c,allT){
     return `<div class="dt-panel" id="gpanel" style="width:${Math.min(250+W,avail+250)}px"><div class="gp-h"><b style="font-size:15px">${esc(k.name)}</b><span class="pill ${st.cls}">${st.label}</span><span class="small muted">${esc(PHASES[k.phase]||"")} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias${k.critica?" · não pode acelerar":""}${k.custom?" · ajustada nesta "+tl:""}${on&&k.doneAt?" · feita em "+brFull(new Date(k.doneAt)):""}</span><button class="iconbtn" data-gclose type="button" aria-label="Fechar" style="margin-left:auto">×</button></div><div class="gp-a">${acts.join("")}</div>${canWrite?editForm(k,z):""}</div>`};
   const rows=ct.map(z=>{const k=z.k,st=tstat(k),l=x(z.s),w=Math.max(DW,x(z.e)-l);const sel=gSel===k.sid;return `<div class="dt-row ${sel?"sel":""}"><div class="dt-lab" data-gsel="${k.sid}" role="button" tabindex="0" title="Clique para editar"><b>${esc(shortName(k.name))}</b><span>${esc(namesOf(k.owners))} · ${br(z.s)} → ${br(z.e)} · ${k.dur} dias</span><span><span class="pill ${st.cls}">${st.label}</span></span></div><div class="dt-track" style="width:${W}px"><div class="dt-bar ${st.cls==="late"?"late":""} ${st.cls==="done"||st.cls==="na"?"done":""}" style="left:${l}px;width:${w}px;background:${idxCol(k)}" data-gsel="${k.sid}" title="${esc(k.name)} — clique para editar">${esc(shortName(k.name))}</div></div></div>${sel?gPanel(k,z):""}`}).join("");
   const lx=x(L)+DW/2, tx=diff(t,min);
-  const lines=`<div class="dt-vline" style="left:${250+lx-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+lx}px;top:44px;background:${col}">${isC?"Lançamento":"Início"} ${br(L)}</span>${!isC&&diff(E,L)>0?`<div class="dt-vline" style="left:${250+x(E)+DW/2-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+x(E)+DW/2}px;top:44px;background:${col}">Fim ${br(E)}</span>`:""}${tx>=0&&tx<n?`<div class="dt-vline" style="left:${250+tx*DW+DW/2-1}px;background:var(--today)"></div>`:""}`;
+  const lines=`<div class="dt-vline" style="left:${250+lx-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+lx}px;top:44px;background:${col}">${isC?"Lançamento":"Início"} ${br(L)}</span>${!isC&&diff(E,L)>0?`<div class="dt-vline" style="left:${250+x(E)+DW/2-1}px;background:${col}"></div><span class="dt-vlab" style="left:${250+x(E)+DW/2}px;top:44px;background:${col}">Fim ${br(E)}</span>`:""}${tx>=0&&tx<n?`<div class="dt-vline" style="left:${250+tx*DW+DW/2-1}px;background:var(--today);width:3px;z-index:6"></div><span class="dt-vlab" style="left:${250+tx*DW+DW/2}px;top:24px;background:var(--today)">Hoje ${br(t)}</span>`:""}`;
   const done=ct.filter(z=>z.k.state==="feito").length,tot=ct.filter(z=>z.k.state!=="na").length;
   const risk=colRisk(c,allT);
-  const riskBox=risk?`<div class="note" style="background:var(--late-bg);color:var(--ink);margin:0 16px 14px"><b style="color:var(--late)">⚠️ ${isC?"Lançamento":"Início da promoção"} em risco.</b> ${esc(shortName(risk.k.name))} ${esc(risk.why)}. Como essa etapa não tem como acelerar (${risk.k.dur} dias), a previsão ${isC?"de lançamento":"de início"} passa de <b>${brFull(L)}</b> para <b>${brFull(risk.proj)}</b> (+${risk.delay} dias). Se quiser manter a data, dá para mudar em “Editar ${tl}” ou reduzir o escopo.</div>`:"";
+  const riskBox=risk?`<div class="note" style="background:var(--late-bg);color:var(--ink);margin:0 16px 14px"><b style="color:var(--late)">⚠️ ${isC?"Lançamento":"Início da promoção"} em risco.</b> ${risk.promo?`<b>${esc(shortName(risk.k.name))}</b> ${esc(risk.why)}. Como essa etapa não tem como acelerar (${risk.k.dur} dias),`:`A etapa que termina mais tarde é <b>${esc(shortName(risk.k.name))}</b>, que ${esc(risk.why)}. Pelas datas atuais,`} a previsão ${isC?"de lançamento":"de início"} passa de <b>${brFull(L)}</b> para <b>${brFull(risk.proj)}</b> (+${risk.delay} dias). Se quiser manter a data, dá para mudar em “Editar ${tl}” ou reduzir o escopo.</div>`:"";
   const etRows=ctN.map(z=>{const k=z.k,on=k.state==="feito";const mo=detMenu===k.sid?`<div class="menu-pop">${canWrite?`<button type="button" data-etedit="${k.sid}">Editar ${el}</button>`:""}${k.state==="andamento"?`<label>Data real de início<input type="date" class="sel" data-realstart="${k.sid}" value="${esc(k.startedAt||iso(today()))}"></label><button type="button" data-unstart="${k.sid}">Voltar para não iniciada</button>`:""}<button type="button" data-na="${k.sid}">${k.state==="na"?"Voltar a valer":"Não se aplica nesta "+tl}</button>${k.custom?`<button type="button" data-xreset="${k.sid}">Voltar ao padrão (${k.tpl.dur||0} dias, ${esc(dlabel(k.tpl))})</button>`:""}${k.tpl.src==="x"?`<button type="button" data-delx="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:canWrite?`<button type="button" data-delm="${k.sid}" style="color:var(--late)">Excluir ${el} desta ${tl}</button>`:""}</div>`:"";
     return `<div class="et ${on?"is-done":""} ${k.state==="na"?"is-na":""}"><button class="ck ${on?"on":""}" data-done="${k.sid}" aria-label="${on?"Desmarcar":"Marcar como feita"}" ${(canWrite||(TEAM&&!on))&&k.state!=="na"?"":"disabled"} type="button"></button><span class="eno num">${k.no||""}</span><div class="nm"><b>${esc(k.name)}</b><small>${(()=>{const st=tstat(k);return `<span class="pill ${st.cls}">${st.label}</span>`})()} ${k.state==="andamento"?`iniciada em ${brFull(dayOf(k.startedAt)||today())}`:startChip(k)}${k.critica?" · não pode acelerar":""}${[k.custom?" · ajustada nesta "+tl:"",k.tpl.src==="x"?" · "+el+" extra":""].join("")}</small>${obsLine(k.obs,"obs",k.sid)}</div>${k.tpl.src==="x"?`<span class="small muted">—</span><span class="small muted">data fixa (extra)</span>`:`<input type="text" id="xd-${k.sid}" data-cdep="${k.sid}" value="${esc(k.depNos||"")}" placeholder="—" aria-label="Depende das etapas nº" ${dis}><select class="sel" id="xm-${k.sid}" data-cmode="${k.sid}" aria-label="Quando" ${dis}><option value="auto" ${k.mode==="auto"?"selected":""}>Automática</option><option value="apos" ${k.mode==="apos"?"selected":""}>Logo após</option><option value="fixa" ${k.mode==="fixa"?"selected":""}>Data fixa</option></select>`}<input type="date" id="xs-${k.sid}" data-xstart="${k.sid}" value="${iso(z.s)}" aria-label="Início" ${dis}><input type="number" min="1" id="xu-${k.sid}" data-xdur="${k.sid}" value="${k.dur||1}" aria-label="Duração em dias" ${dis}><input type="date" id="xe-${k.sid}" data-xdue="${k.sid}" value="${iso(z.e)}" aria-label="Entrega" ${dis}>${ownerSel(k)}<div class="menu">${canWrite?`<button class="iconbtn" data-detmenu="${k.sid}" aria-label="Mais opções" type="button">⋯</button>`:""}${mo}</div></div>${etEdit===k.sid&&gSel!==k.sid?editForm(k,z):""}`}).join("");
   const addF=canWrite?`<form class="addet" data-addet="${c.id}"><label style="flex:1 1 220px">Nova ${el} nesta ${tl}<input type="text" id="ae-name" required placeholder="${isC?"Ex.: Aprovação de peça-piloto":"Ex.: Gravar vídeo com influenciadora"}"></label><label>Início<input type="date" id="ae-start" value="${iso(addDays(L,-20))}"></label><label>Entrega<input type="date" id="ae-due" value="${iso(addDays(L,-10))}"></label><label>Responsáveis<span>${team.map(p=>`<label class="ochk" style="flex-direction:row;font-weight:600;color:var(--ink)"><input type="checkbox" id="ae-o-${p.id}" data-aeo="${p.id}">${esc(p.name)}</label>`).join("")}</span></label><button class="btn primary" type="submit">Adicionar ${el}</button></form>`:"";
@@ -653,9 +661,14 @@ function depKeys(t,list,idx){if(Array.isArray(t.deps))return t.deps;if(t.dep&&li
 function fixedDue(t,c){const s0=parseD(c.start),e0=parseD(c.end);const anchor=t.anchor==="fim"?e0:s0;let due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
   if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
   return isAfter(t)?bizFwd(due):bizBack(due)}
+function addBiz(d,n){let x=new Date(d);if(n<=0)return bizFwd(x);while(n>0){x=addDays(x,1);if(x.getDay()%6)n--}return x}
+function subBiz(d,n){let x=new Date(d);if(n<=0)return bizBack(x);while(n>0){x=addDays(x,-1);if(x.getDay()%6)n--}return x}
+function bizDiff(a,b){if(+a===+b)return 0;const sg=a>b?1:-1;let x=new Date(b),k=0;while(+x!==+a){x=addDays(x,sg);if(x.getDay()%6)k+=sg;if(Math.abs(diff(x,b))>4000)break}return k}
 function calcList(list,c,stOf,raw){
   const BB=raw?(d=>d):bizBack,BF=raw?(d=>d):bizFwd;
-  const n=list.length,L=BB(parseD(c.start));
+  const U=!raw&&!!c.uteis;
+  const AF=raw?((d,k)=>addDays(d,k)):U?addBiz:((d,k)=>bizFwd(addDays(d,k))),AB=raw?((d,k)=>addDays(d,-k)):U?subBiz:((d,k)=>bizBack(addDays(d,-k))),DF=U?bizDiff:diff;
+  const n=list.length,L=BB(parseD(c.start)),T=isCol(c)&&(raw||U)?AB(parseD(c.start),1):L;
   const st=list.map(t=>(stOf&&stOf(t))||{});
   const dur=list.map((t,i)=>st[i].dur!=null?Number(st[i].dur):Number(t.dur||0));
   const idx={};list.forEach((t,i)=>{if(idx[t.key]==null)idx[t.key]=i});
@@ -668,13 +681,13 @@ function calcList(list,c,stOf,raw){
     const due=new Array(n),beg=new Array(n),gate=new Array(n),mark=new Array(n).fill(0),root=new Array(n).fill(false);
     function predEnd(js,seen){let m=null;for(const j of js){if(seen.has(j))continue;seen.add(j);let v;if(isNA(j))v=predEnd(deps[j],seen);else{solve(j);v=due[j]}if(v!=null&&(m==null||v>m))m=v}return m}
     function solve(i){if(mark[i]===2)return;if(mark[i]===1){due[i]=L;beg[i]=L;gate[i]=L;return}mark[i]=1;const t=list[i],du=dur[i];let d,b;
-      if(st[i].due){d=parseD(st[i].due);b=du>0?BB(addDays(d,-du)):null}
+      if(st[i].due){d=parseD(st[i].due);b=du>0?AB(d,du):null}
       else if(isApos(t)){const m=predEnd(deps[i],new Set([i]));
-        if(m!=null){d=BF(addDays(m,du));b=du>0?m:null}
-        else if(!legacy(i)&&B){root[i]=true;const s0=BF(B);d=BF(addDays(s0,du));b=du>0?s0:null}
-        else{d=fd(t);b=du>0?BB(addDays(d,-du)):null}}
-      else if(isAuto(t)){let m=null;for(const k of succ[i]){if(isApos(list[k])&&!st[k].due)continue;solve(k);if(m==null||gate[k]<m)m=gate[k]}d=BB(m||L);b=du>0?BB(addDays(d,-du)):null}
-      else{d=fd(t);b=du>0?BB(addDays(d,-du)):null}
+        if(m!=null){d=du>0?AF(m,du):BF(m);b=du>0?m:null}
+        else if(!legacy(i)&&B){root[i]=true;const s0=BF(B);d=du>0?AF(s0,du):s0;b=du>0?s0:null}
+        else{d=fd(t);b=du>0?AB(d,du):null}}
+      else if(isAuto(t)){let m=null;for(const k of succ[i]){if(isApos(list[k])&&!st[k].due)continue;solve(k);if(m==null||gate[k]<m)m=gate[k]}d=BB(m||T);b=du>0?AB(d,du):null}
+      else{d=fd(t);b=du>0?AB(d,du):null}
       due[i]=d;beg[i]=b;gate[i]=isNA(i)?d:(b||d);mark[i]=2}
     for(let i=0;i<n;i++)solve(i);
     // descendants of roots (Logo após chains started by a root)
@@ -683,7 +696,8 @@ function calcList(list,c,stOf,raw){
     let E=null;net.forEach(i=>{if(!isNA(i)&&(E==null||due[i]>E))E=due[i]});
     return {due,beg,gate,E,hasRoot:net.size>0}}
   let r=run(L);
-  if(r.hasRoot&&r.E){let B=addDays(L,-diff(r.E,L));for(let k=0;k<4;k++){r=run(B);const over=diff(r.E,L);if(over===0)break;B=addDays(B,-over)}}
+  const SH=U?((x,k)=>k>0?subBiz(x,k):k<0?addBiz(x,-k):x):((x,k)=>addDays(x,-k));
+  if(r.hasRoot&&r.E){let B=SH(L,DF(r.E,T));for(let k=0;k<6;k++){r=run(B);const over=DF(r.E,T);if(over===0)break;B=SH(B,over)}}
   const {due,beg,gate}=r;
   return list.map((t,i)=>{const o={due:due[i],start:beg[i],dur:dur[i],mode:st[i].due?"fixa":modeOf(t)};
     if(!isNA(i)){const myS=gate[i];const late=deps[i].filter(j=>!isNA(j)&&due[j]>myS);if(late.length)o.conflict=late}
@@ -731,10 +745,10 @@ function renderCfg(){
    <div class="card" data-model="tasks"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Etapas <b>Automáticas</b> terminam quando começa a tarefa que depende delas, e a que ninguém depende termina no início da promoção. Use “Data fixa” para o que tem dia certo (ex.: 0 dias antes do fim = último dia).</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dc,FAKE.campanha,"do início da promoção")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="tasks" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="tasks" type="button">+ Tarefa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Tarefa","Termina")}<tbody>${tks}</tbody></table></div>
    </div>
-   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as datas caem em dias úteis. Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar no lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dk,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dk,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${cols}</tbody></table></div>
    </div>
-   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina no lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as datas caem em dias úteis. Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar no lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(ds,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(ds,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${spots}</tbody></table></div>
    </div>
    <div class="card">
@@ -816,6 +830,7 @@ async function saveModal(){
   if(end<start){err.textContent="A data de fim precisa ser igual ou depois do início.";err.hidden=false;return}
   const base=editing?campaigns.find(x=>x.id===editing):{};
   const data={tipo:sp?"spot":col?"colecao":"campanha",name,start,end,color:pickColor,mecanica:$("#f-mec").value.trim(),notas:$("#f-notes").value.trim(),extras:base?.extras||[],createdAt:base?.createdAt||new Date().toISOString()};
+  if(!editing||base?.uteis)data.uteis=true;
   if(editing&&Array.isArray(base?.tasks))data.tasks=base.tasks;
   if(!editing)data.tasks=JSON.parse(JSON.stringify(tplsOf({tipo:data.tipo}).filter(t=>t.active!==false)));
   const id=editing||db.collection("campaigns").doc().id;
