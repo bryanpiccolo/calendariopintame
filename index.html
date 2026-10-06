@@ -395,8 +395,12 @@ function allTasks(){
   }
   return out;
 }
-function bizBack(d){const g=d.getDay();return g===6?addDays(d,-1):g===0?addDays(d,-2):d}
-function bizFwd(d){const g=d.getDay();return g===6?addDays(d,2):g===0?addDays(d,1):d}
+const HOLC={};
+function holidaysOf(y){if(HOLC[y])return HOLC[y];const a=y%19,b=Math.floor(y/100),c=y%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,m=Math.floor((a+11*h+22*l)/451),mo=Math.floor((h+l-7*m+114)/31),da=((h+l-7*m+114)%31)+1;
+  const easter=new Date(y,mo-1,da);const S=new Set(["01-01","04-21","05-01","09-07","10-12","11-02","11-15","11-20","12-25"].map(x=>y+"-"+x));S.add(iso(addDays(easter,-2)));HOLC[y]=S;return S}
+function isOff(d){const g=d.getDay();return g===0||g===6||holidaysOf(d.getFullYear()).has(iso(d))}
+function bizBack(d){let x=new Date(d),n=0;while(isOff(x)&&n++<15)x=addDays(x,-1);return x}
+function bizFwd(d){let x=new Date(d),n=0;while(isOff(x)&&n++<15)x=addDays(x,1);return x}
 function dayOf(v){if(!v)return null;if(/^\d{4}-\d{2}-\d{2}$/.test(v))return parseD(v);const x=new Date(v);return new Date(x.getFullYear(),x.getMonth(),x.getDate())}
 function promoRisk(c,tasks){const t=today();let best=null;
   for(const k of tasks.filter(k=>k.camp.id===c.id&&k.critica&&k.state!=="na")){
@@ -661,13 +665,13 @@ function depKeys(t,list,idx){if(Array.isArray(t.deps))return t.deps;if(t.dep&&li
 function fixedDue(t,c){const s0=parseD(c.start),e0=parseD(c.end);const anchor=t.anchor==="fim"?e0:s0;let due=addDays(anchor,-Number(t.days||0));const wd=wdOf(t);
   if(wd!=null&&!isNaN(wd))due=isAfter(t)?addDays(due,(wd-due.getDay()+7)%7):addDays(due,-((due.getDay()-wd+7)%7));
   return isAfter(t)?bizFwd(due):bizBack(due)}
-function addBiz(d,n){let x=new Date(d);if(n<=0)return bizFwd(x);while(n>0){x=addDays(x,1);if(x.getDay()%6)n--}return x}
-function subBiz(d,n){let x=new Date(d);if(n<=0)return bizBack(x);while(n>0){x=addDays(x,-1);if(x.getDay()%6)n--}return x}
-function bizDiff(a,b){if(+a===+b)return 0;const sg=a>b?1:-1;let x=new Date(b),k=0;while(+x!==+a){x=addDays(x,sg);if(x.getDay()%6)k+=sg;if(Math.abs(diff(x,b))>4000)break}return k}
+function addBiz(d,n){let x=new Date(d);if(n<=0)return bizFwd(x);while(n>0){x=addDays(x,1);if(!isOff(x))n--}return x}
+function subBiz(d,n){let x=new Date(d);if(n<=0)return bizBack(x);while(n>0){x=addDays(x,-1);if(!isOff(x))n--}return x}
+function bizDiff(a,b){if(+a===+b)return 0;const sg=a>b?1:-1;let x=new Date(b),k=0;while(+x!==+a){x=addDays(x,sg);if(!isOff(x))k+=sg;if(Math.abs(diff(x,b))>4000)break}return k}
 function calcList(list,c,stOf,raw){
   const BB=raw?(d=>d):bizBack,BF=raw?(d=>d):bizFwd;
   const U=!raw&&!!c.uteis;
-  const AF=raw?((d,k)=>addDays(d,k)):U?addBiz:((d,k)=>bizFwd(addDays(d,k))),AB=raw?((d,k)=>addDays(d,-k)):U?subBiz:((d,k)=>bizBack(addDays(d,-k))),DF=U?bizDiff:diff;
+  const AF=raw?((d,k)=>addDays(d,k)):U?addBiz:((d,k)=>k<=5?addBiz(d,k):bizFwd(addDays(d,k))),AB=raw?((d,k)=>addDays(d,-k)):U?subBiz:((d,k)=>k<=5?subBiz(d,k):bizBack(addDays(d,-k))),DF=U?bizDiff:diff;
   const n=list.length,L=BB(parseD(c.start)),T=isCol(c)&&(raw||U)?AB(parseD(c.start),1):L;
   const st=list.map(t=>(stOf&&stOf(t))||{});
   const dur=list.map((t,i)=>st[i].dur!=null?Number(st[i].dur):Number(t.dur||0));
@@ -745,10 +749,10 @@ function renderCfg(){
    <div class="card" data-model="tasks"><div class="card-h"><div><h2>Modelo de tarefas · Promoções</h2><div class="small muted">Etapas <b>Automáticas</b> terminam quando começa a tarefa que depende delas, e a que ninguém depende termina no início da promoção. Use “Data fixa” para o que tem dia certo (ex.: 0 dias antes do fim = último dia).</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dc,FAKE.campanha,"do início da promoção")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="tasks" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="tasks" type="button">+ Tarefa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Tarefa","Termina")}<tbody>${tks}</tbody></table></div>
    </div>
-   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dk,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="col"><div class="card-h"><div><h2>Modelo de tarefas · Coleções</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex, sem feriados nacionais). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(dk,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="col" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="col" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${cols}</tbody></table></div>
    </div>
-   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(ds,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
+   <div class="card" data-model="spot"><div class="card-h"><div><h2>Modelo de tarefas · Spots</h2><div class="small muted">As datas são calculadas de trás pra frente: cada etapa <b>Automática</b> termina quando começa a etapa que depende dela, e a que ninguém depende termina um dia antes do lançamento. Use “Depende da etapa nº” para ligar as etapas e “Data fixa” só para o que tem dia certo. No modelo os dias são corridos; ao criar uma coleção ou spot, as durações passam a contar só dias úteis (seg a sex, sem feriados nacionais). Etapas em “Logo após” começam quando a dependência termina e o conjunto é encaixado para a última terminar um dia antes do lançamento.</div><div class="small" style="margin-top:6px;font-weight:700">${tot(ds,FAKE.colecao,"do lançamento")}</div></div>${canWrite?`<span style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn sm" data-allauto="spot" type="button">Deixar tudo automático</button><button class="btn sm" data-ccadd="spot" type="button">+ Etapa</button></span>`:""}</div>
     <div class="cfg-table"><table>${head("Etapa","Termina")}<tbody>${spots}</tbody></table></div>
    </div>
    <div class="card">
